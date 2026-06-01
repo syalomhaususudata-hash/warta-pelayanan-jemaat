@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { collection, getDocs, doc, setDoc, getDoc } from "firebase/firestore";
 import { db } from "../firebase"; // <-- HANYA FIRESTORE, TANPA STORAGE
+import KehadiranJemaat from "./KehadiranJemaat";
+import { getAuth } from "firebase/auth"; // <-- Tambahkan ini di atas
 
 export default function Dashboard() {
   const [tabAktif, setTabAktif] = useState("minggu");
@@ -20,6 +22,13 @@ export default function Dashboard() {
   const [profilGereja, setProfilGereja] = useState({
     wakilKetua: "", sekretaris: "", namaJemaat: "Koa I", namaMataJemaat: "Syalom Haususu"
   });
+
+  // Mengambil data user yang sedang login saat ini
+  const auth = getAuth();
+  const user = auth.currentUser;
+  
+  // Ganti "email_sekretaris@gmail.com" dengan email asli yang Anda gunakan untuk login!
+  const apakahSekretaris = user && user.email === "sekretaris@haususu.com";
 
   useEffect(() => {
     const ambilData = async () => {
@@ -318,11 +327,11 @@ export default function Dashboard() {
   return (
     <div style={{ maxWidth: "1000px", margin: "0 auto", fontFamily: "Arial", padding: "20px" }}>
       <style dangerouslySetInnerHTML={{__html: `
+        /* --- KELAS UNTUK TAMPILAN LAYAR (LOCALHOST) --- */
         .screen-none { display: none; }
         .screen-block { display: block; }
         .print-only { display: none !important; }
         
-        /* KELAS KHUSUS AGAR TABEL BISA DIGESER DI HP */
         .table-responsive {
           width: 100%;
           overflow-x: auto;
@@ -330,11 +339,29 @@ export default function Dashboard() {
           margin-bottom: 40px;
         }
 
-        /* ATURAN PENCETAKAN (PRINT CSS) - MEMPERBAIKI TABEL TERPOTONG & TAB HILANG */
+        /* --- ATURAN PENCETAKAN (PRINT CSS) --- */
         @media print { 
+          /* Tambahkan perintah ini untuk memaksa seluruh lapis web menjadi putih mutlak */
+          html, body, #root { 
+            background-color: white !important; 
+            background: white !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+
+          /* Mematikan margin bawaan browser Chrome/Edge */
+          @page {
+            margin: 0mm; 
+          }
+
+          /* Pastikan print area tidak memiliki garis atau bayangan */
+          .print-area { 
+            border: none !important; 
+            box-shadow: none !important; 
+            background: transparent !important; 
+          } 
           #dashboard-tabs, .no-print { display: none !important; } 
           
-          /* Paksa SEMUA tab untuk muncul ke kertas cetakan */
           .screen-none, .screen-block { 
             display: block !important; 
             visibility: visible !important;
@@ -350,36 +377,71 @@ export default function Dashboard() {
             margin-bottom: 30px; 
           } 
           
-          .print-only { display: flex !important; page-break-inside: avoid; }
-          body { background-color: white !important; margin: 0; padding: 0; } 
+          .print-only { 
+            display: flex !important;
+            page-break-inside: avoid; 
+          }
           
-          /* Lepas paksaan scroll agar tabel utuh di kertas */
+          body { 
+            background-color: white !important; 
+            margin: 0;
+            padding: 0; 
+          } 
+
+          /* 1. MENGHILANGKAN GARIS ABU-ABU & SCROLLBAR */
+          ::-webkit-scrollbar { 
+            display: none !important; 
+          }
+          
+          .wadah-tabel-print {
+            border: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            background-color: transparent !important;
+            box-shadow: none !important;
+          }
+          
           .table-responsive {
             overflow-x: visible !important;
             display: block !important;
             margin-bottom: 20px !important;
+            border: none !important;
           }
+          
+          /* 2. MERAPIKAN TABEL & TEKS PEMANDU LAGU */
           table { 
-            width: 100% !important; 
+            width: 100% !important;
             max-width: 100% !important;
             border-collapse: collapse; 
             table-layout: auto !important; 
           } 
+          
           th, td { 
-            border: 1px solid #000 !important; 
+            border: 1px solid #000 !important;
             padding: 6px !important; 
             color: black !important; 
             white-space: normal !important; 
             word-wrap: break-word !important;
-            font-size: 12px !important; 
+            font-size: 12px !important;
           } 
           
+          /* ATURAN GAMBAR KEUANGAN */
           .grid-keuangan { display: block !important; }
           .gambar-wrapper-cetak {
-            display: block !important; width: 100% !important; page-break-after: always !important; 
-            page-break-inside: avoid !important; border: none !important; padding: 0 !important; margin: 0 0 20px 0 !important;
+            display: block !important;
+            width: 100% !important; 
+            page-break-after: always !important; 
+            page-break-inside: avoid !important; 
+            border: none !important; 
+            padding: 0 !important;
+            margin: 0 0 20px 0 !important;
           }
-          .item-gambar-cetak { width: 100% !important; max-height: 290mm !important; object-fit: contain !important; border: none !important; }
+          .item-gambar-cetak { 
+            width: 100% !important;
+            max-height: 290mm !important; 
+            object-fit: contain !important; 
+            border: none !important; 
+          }
         }
       `}} />
 
@@ -452,7 +514,7 @@ export default function Dashboard() {
           </div>
           {/* ======== SELESAI KATA SAMBUTAN ======== */}
           {!loading && semuaJadwalMinggu.length > 0 && (
-            <div style={{ border: "1px solid #e0e0e0", padding: "25px", borderRadius: "10px", backgroundColor: "white", marginBottom: "30px" }}>
+            <div className="wadah-tabel-print" style={{ border: "1px solid #e0e0e0", padding: "25px", borderRadius: "10px", backgroundColor: "white", marginBottom: "30px" }}>
               
               {/* TABEL KEBAKTIAN MINGGU */}
               <h2 className="print-only" style={{ textAlign: "center", marginBottom: "20px" }}>WARTA PELAYANAN MINGGUAN</h2>
@@ -472,9 +534,14 @@ export default function Dashboard() {
                         </tr>
                       </thead>
                       <tbody>
-                        {['petugas', 'pendamping', 'baca_firman', 'doa_persembahan', 'mazmur', 'pembacaan', 'masa_raya', 'tema', 'stola', 'busana', 'psvg'].map((k) => (
+                        {['petugas', 'pendamping', 'baca_firman', 'doa_persembahan', 'mazmur', 'pembacaan', 'masa_raya', 'tema', 'stola', 'busana', 'psvg', 'pemandu_lagu', 'pemandu_lagu_rayon'].map((k) => (
                           <tr key={k}>
-                            <td style={{ padding:"10px", border:"1px solid #ddd", fontWeight:"bold", textTransform: "capitalize" }}>{k.replace('_', ' ')}</td>
+                            <td style={{ padding:"10px", border:"1px solid #ddd", fontWeight:"bold", textTransform: "capitalize" }}>
+                              {/* Logika untuk menampilkan nama label dengan rapi */}
+                              {k === 'pemandu_lagu' ? 'Pemandu Lagu' : 
+                              k === 'pemandu_lagu_rayon' ? 'Pemandu Lagu dari Rayon' : 
+                              k.replace(/_/g, ' ')}
+                            </td>
                             <td style={{ padding:"10px", border:"1px solid #ddd", textAlign:"center", color: k === 'petugas' ? "#007BFF" : "black", fontWeight: k === 'petugas' ? "bold" : "normal" }}>{mingguIni[k] || "-"}</td>
                             <td style={{ padding:"10px", border:"1px solid #ddd", textAlign:"center" }}>{mingguDepan?.[k] || "-"}</td>
                           </tr>
@@ -484,6 +551,12 @@ export default function Dashboard() {
                   </div>
                 </>
               ) : <p style={{ textAlign: "center", fontStyle: "italic", color: "red", marginBottom: "30px" }}>Tidak ada Jadwal Kebaktian untuk pekan ini.</p>}
+
+              {/* KOMPONEN KEHADIRAN DISISIPKAN DI SINI */}
+                <KehadiranJemaat 
+                  tanggal={tanggalTerpilih} 
+                  isSekretaris={apakahSekretaris} 
+                /> 
 
               {/* TABEL IBADAH RAYON */}
               <h4 style={{ borderBottom: "2px solid #0A2540", paddingBottom: "8px", color: "#0A2540", fontSize: "16px", marginTop: !mingguIni ? "0" : "20px" }}>PELAYANAN IBADAH RAYON SEPEKAN</h4>

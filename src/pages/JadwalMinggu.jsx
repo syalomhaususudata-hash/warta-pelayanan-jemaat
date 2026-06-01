@@ -112,7 +112,9 @@ export default function JadwalMinggu() {
   const [formData, setFormData] = useState({
     tanggal: "", masa_raya: "", mazmur: "", pembacaan: "", 
     stola: "", tema: "", petugas: "", pendamping: "", 
-    baca_firman: "", doa_persembahan: "", busana: "", psvg: ""
+    baca_firman: "", doa_persembahan: "", busana: "", psvg: "",
+    pemandu_lagu: "", // Penambahan state pemandu_lagu
+    pemandu_lagu_rayon: "" // <--- TAMBAHAN BARU
   });
   const [editId, setEditId] = useState(null);
 
@@ -125,7 +127,9 @@ export default function JadwalMinggu() {
     { key: "tema", label: "Tema" }, { key: "stola", label: "Stola" },
     { key: "busana", label: "Busana" }, { key: "psvg", label: "PS / VG" },
     { key: "petugas", label: "Petugas" }, { key: "pendamping", label: "Pendamping" },
-    { key: "baca_firman", label: "Baca Firman" }, { key: "doa_persembahan", label: "Doa Persembahan" }
+    { key: "baca_firman", label: "Baca Firman" }, { key: "doa_persembahan", label: "Doa Persembahan" },
+    { key: "pemandu_lagu", label: "Pemandu Lagu" }, // Penambahan kolom untuk tabel dan mapper
+    { key: "pemandu_lagu_rayon", label: "Pemandu Lagu Rayon" } // <--- TAMBAHAN BARU
   ];
 
   const fetchJadwal = async () => {
@@ -177,14 +181,16 @@ export default function JadwalMinggu() {
     setFormData({
       tanggal: jadwal.tanggal || "", masa_raya: jadwal.masa_raya || "", mazmur: jadwal.mazmur || "", pembacaan: jadwal.pembacaan || "", 
       stola: jadwal.stola || "", tema: jadwal.tema || "", petugas: jadwal.petugas || "", pendamping: jadwal.pendamping || "", 
-      baca_firman: jadwal.baca_firman || "", doa_persembahan: jadwal.doa_persembahan || "", busana: jadwal.busana || "", psvg: jadwal.psvg || ""
+      baca_firman: jadwal.baca_firman || "", doa_persembahan: jadwal.doa_persembahan || "", busana: jadwal.busana || "", psvg: jadwal.psvg || "",
+      pemandu_lagu: jadwal.pemandu_lagu || "", // Memastikan data lama masuk ke form edit
+      pemandu_lagu_rayon: jadwal.pemandu_lagu_rayon || "" // <--- TAMBAHAN BARU
     });
     setEditId(jadwal.id);
     setShowModalEdit(true);
   };
 
   const resetForm = () => {
-    setFormData({ tanggal: "", masa_raya: "", mazmur: "", pembacaan: "", stola: "", tema: "", petugas: "", pendamping: "", baca_firman: "", doa_persembahan: "", busana: "", psvg: "" });
+    setFormData({ tanggal: "", masa_raya: "", mazmur: "", pembacaan: "", stola: "", tema: "", petugas: "", pendamping: "", baca_firman: "", doa_persembahan: "", busana: "", psvg: "", pemandu_lagu: "", pemandu_lagu_rayon: "" }); // <--- PASTIKAN ADA KEDUANYA DI SINI
     setEditId(null);
   };
 

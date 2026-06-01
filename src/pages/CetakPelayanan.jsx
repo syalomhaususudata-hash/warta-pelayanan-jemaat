@@ -127,34 +127,36 @@ export default function CetakPelayanan() {
         @media print { 
           @page {
             size: A4 landscape;
-            margin: 5mm; /* Margin kertas diperkecil maksimal menjadi 0.5 cm */
+            /* Memberikan jarak 10mm di atas/bawah, dan 5mm di kiri/kanan agar aman dari potongan printer */
+            margin: 10mm 5mm !important; 
           }
+          
           #menu-cetak, .tampilan-layar-saja { display: none !important; } 
           .tampilan-cetak-saja { display: block !important; }
-          body { background-color: white !important; margin: 0; padding: 0; } 
-          .print-area { display: block !important; width: 100%; } 
           
-          /* Rapatkan area Kop Surat secara maksimal */
+          /* RESET BACKGROUND & BORDER PEMBUNGKUS AGAR BERSIH */
+          body { background-color: white !important; margin: 0; padding: 0; } 
+          .print-area { display: block !important; width: 100%; border: none !important; background: transparent !important; box-shadow: none !important; } 
+          div { box-shadow: none !important; }
+          ::-webkit-scrollbar { display: none !important; } /* Hilangkan track abu-abu scrollbar */
+
           h3 { margin: 0px !important; font-size: 13px !important; line-height: 1.2 !important; }
 
-          /* Optimasi agar tabel fit di kertas: kecilkan font, line-height, dan padding */
           table { width: 100% !important; border-collapse: collapse; font-size: 12px !important; page-break-inside: auto; } 
           tr { page-break-inside: avoid; page-break-after: auto; }
           th, td { 
-            border: 1px solid black !important; 
-            padding: 2px 3px !important; /* Atas-bawah 1px, kiri-kanan 3px (Ekstra Rapat) */
-            color: black !important; 
+            border: 1px solid black !important;
+            padding: 2px 3px !important; 
+            color: black !important;
             text-align: center; 
             height: auto !important;
-            line-height: 1.1 !important; /* Memaksa teks yang panjang agar spasi antar barisnya rapat */
+            line-height: 1.1 !important; 
           } 
           .align-left { text-align: left !important; }
           
-          /* Tarik area tanda tangan lebih ke atas lagi */
           .ttd-box { display: flex !important; justify-content: space-between; margin-top: 10px !important; page-break-inside: avoid; } 
         }
 
-        /* Scrollbar kustom untuk tabel responsif (opsional agar cantik) */
         .table-responsive::-webkit-scrollbar { height: 8px; }
         .table-responsive::-webkit-scrollbar-thumb { background-color: #007BFF; border-radius: 4px; }
         .table-responsive::-webkit-scrollbar-track { background-color: #f1f1f1; }
@@ -207,6 +209,7 @@ export default function CetakPelayanan() {
                   <tr style={{ backgroundColor: "#f4f4f4" }}>
                     <th>TANGGAL</th><th>MASA RAYA</th><th>BACAAN & MAZMUR</th>
                     <th>TEMA</th><th>STOLA & BUSANA</th><th>PS/VG</th>
+                    <th>PEMANDU LAGU</th><th>PEMANDU LAGU RAYON</th>
                     <th>PELAYAN FIRMAN</th><th>PENDAMPING</th>
                     <th>BACA FIRMAN</th><th>DOA PERSEMBAHAN</th>
                   </tr>
@@ -220,6 +223,8 @@ export default function CetakPelayanan() {
                       <td className="align-left">{j.tema}</td>
                       <td className="align-left"><b>Stola:</b> {j.stola}<br/><b>Busana:</b> {j.busana}</td>
                       <td>{j.psvg}</td>
+                      <td>{j.pemandu_lagu || "-"}</td>
+                      <td>{j.pemandu_lagu_rayon || "-"}</td>
                       <td className="align-left">{j.petugas}</td>
                       <td className="align-left">{j.pendamping}</td>
                       <td className="align-left">{j.baca_firman}</td>
@@ -240,14 +245,20 @@ export default function CetakPelayanan() {
             {/* TABEL 2: UNTUK MESIN CETAK/PDF (TAMPILKAN SEMUA DATA) */}
             <div className="tampilan-cetak-saja">
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px" }}>
+                
+                {/* --- KEPALA TABEL --- */}
                 <thead>
                   <tr style={{ backgroundColor: "#f4f4f4" }}>
                     <th>TANGGAL</th><th>MASA RAYA</th><th>BACAAN & MAZMUR</th>
                     <th>TEMA</th><th>STOLA & BUSANA</th><th>PS/VG</th>
+                    <th>PEMANDU LAGU</th> 
+                    <th>PEMANDU LAGU RAYON</th> 
                     <th>PELAYAN FIRMAN</th><th>PENDAMPING</th>
                     <th>BACA FIRMAN</th><th>DOA PERSEMBAHAN</th>
                   </tr>
                 </thead>
+                
+                {/* --- ISI TABEL --- */}
                 <tbody>
                   {jadwalMinggu.map((j) => (
                     <tr key={j.id}>
@@ -257,6 +268,8 @@ export default function CetakPelayanan() {
                       <td className="align-left">{j.tema}</td>
                       <td className="align-left"><b>Stola:</b> {j.stola}<br/><b>Busana:</b> {j.busana}</td>
                       <td>{j.psvg}</td>
+                      <td>{j.pemandu_lagu || "-"}</td>
+                      <td>{j.pemandu_lagu_rayon || "-"}</td>
                       <td className="align-left">{j.petugas}</td>
                       <td className="align-left">{j.pendamping}</td>
                       <td className="align-left">{j.baca_firman}</td>
@@ -264,6 +277,7 @@ export default function CetakPelayanan() {
                     </tr>
                   ))}
                 </tbody>
+
               </table>
             </div>
           </>

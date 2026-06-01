@@ -4,14 +4,19 @@ import PasteExcel from "../components/PasteExcel";
 
 export default function ManajemenJadwalMinggu() {
   
-  // Mendefinisikan urutan kolom sesuai dengan format file Excel Warta
+  // Mendefinisikan urutan kolom yang DISAMAKAN dengan JadwalMinggu.jsx 
+  // agar sinkron dengan database Firebase
   const strukturKolomMinggu = [
     { key: "tanggal", label: "Tanggal" },
     { key: "masa_raya", label: "Masa Raya" },
-    { key: "pembacaan_mazmur", label: "Pembacaan Mazmur" },
-    { key: "pembacaan_alkitab", label: "Pembacaan Alkitab" },
-    { key: "stola", label: "Stola" },
+    { key: "pembacaan", label: "Pembacaan Alkitab" }, 
+    { key: "mazmur", label: "Mazmur" }, 
     { key: "tema", label: "Tema" },
+    { key: "stola", label: "Stola" },
+    { key: "busana", label: "Busana" }, // Disamakan dengan struktur utama
+    { key: "psvg", label: "PS / VG" }, // Disamakan dengan struktur utama
+    { key: "pemandu_lagu", label: "Pemandu Lagu" }, // TAMBAHAN BARU
+    { key: "pemandu_lagu_rayon", label: "Pemandu Lagu Rayon" }, // TAMBAHAN BARU
     { key: "petugas", label: "Petugas Utama" },
     { key: "pendamping", label: "Pendamping" },
     { key: "baca_firman", label: "Baca Firman" },
