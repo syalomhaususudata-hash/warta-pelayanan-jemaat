@@ -196,7 +196,7 @@ export default function PembuatanJadwal() {
   };
 
   const handleHapusMassal = async () => {
-    if(!window.confirm(`Hapus semua jadwal untuk ${konfigurasi.namaTarget}? Ini tidak bisa dibatalkan.`)) return;
+    if(!window.confirm(`PERINGATAN: Anda akan menghapus SELURUH data Jadwal Kebaktian untuk ${konfigurasi.namaTarget}. Tindakan ini tidak dapat dibatalkan. Lanjutkan?`)) return;
     try {
       const batch = writeBatch(db);
       // Hapus data yang ada di tabel saat ini (yang sudah terisolasi aman)
@@ -294,7 +294,7 @@ export default function PembuatanJadwal() {
                 <h2>Manajemen: {targetTerpilih.tipe === 'kategori' ? `${targetTerpilih.namaKategoriRoot} - ` : ''}{konfigurasi.namaTarget}</h2>
                 {jadwalTersimpan.length > 0 && (
                   <button onClick={handleHapusMassal} style={{ padding: "8px 15px", backgroundColor: "#dc3545", color: "white", border: "none", borderRadius: "5px", cursor: "pointer", fontWeight: "bold" }}>
-                    🗑️ Hapus Semua Jadwal Ini
+                    🗑️ Kosongkan Data Jadwal {konfigurasi.namaTarget}
                   </button>
                 )}
               </div>

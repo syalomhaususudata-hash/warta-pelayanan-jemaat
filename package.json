@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host",
+    "dev:koa": "vite --mode koa --host",
     "build": "vite build",
+    "build:koa": "vite build --mode koa",
     "lint": "eslint .",
     "preview": "vite preview"
   },

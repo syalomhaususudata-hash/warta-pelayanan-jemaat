@@ -12,6 +12,7 @@ import JadwalMinggu from "./pages/JadwalMinggu";
 import SetPelayanan from "./pages/SetPelayanan";
 import PembuatanJadwal from "./pages/PembuatanJadwal";
 import Login from "./pages/Login";
+import Tentang from "./pages/Tentang"; // Sesuaikan path foldernya jika berbeda
 
 const HeaderDanNavigasi = ({ user, handleLogout }) => {
   const location = useLocation();
@@ -61,6 +62,7 @@ const HeaderDanNavigasi = ({ user, handleLogout }) => {
           <Link to="/cetak-pelayanan" style={{ color: path.includes("cetak") ? "#FFD700" : "white", textDecoration: "none", fontWeight: "bold" }}>🖨️ Cetak Pelayanan</Link>
           {user && <Link to="/realisasi-pelayanan" style={{ color: path === "/realisasi-pelayanan" ? "#FFD700" : "white", textDecoration: "none", fontWeight: "bold" }}>📊 Realisasi Pelayanan</Link>}
           {user && <Link to="/jadwal-minggu" style={{ color: isManajemenAktif ? "#FFD700" : "white", textDecoration: "none", fontWeight: "bold" }}>⚙️ Manajemen Data</Link>}
+          <Link to="/tentang" style={{ color: "white", textDecoration: "none", fontWeight: "bold", marginLeft: "15px" }}>ℹ️ Tentang Profil</Link>
           
           <button onClick={() => window.location.reload()} style={{ marginLeft: "auto", padding: "6px 12px", backgroundColor: "#17a2b8", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontWeight: "bold" }}>🔄 Segarkan</button>
 
@@ -109,6 +111,7 @@ export default function App() {
             <Route path="/set-pelayanan" element={user ? <SetPelayanan /> : <Navigate to="/login" />} />
             <Route path="/jadwal-minggu" element={user ? <JadwalMinggu /> : <Navigate to="/login" />} />
             <Route path="/pembuatan-jadwal" element={user ? <PembuatanJadwal /> : <Navigate to="/login" />} />
+            <Route path="/tentang" element={<Tentang />} />
             </Routes>
         </div>
       </div>

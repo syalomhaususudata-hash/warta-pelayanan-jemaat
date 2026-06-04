@@ -10,7 +10,9 @@ export default function SetPelayanan() {
 
   const [profilGereja, setProfilGereja] = useState({
     namaKlasis: "", namaJemaat: "", namaMataJemaat: "", namaPendeta: "",
-    wakilKetua: "", sekretaris: "", wakilSekretaris: "", bendahara: "", wakilBendahara: ""
+    wakilKetua: "", sekretaris: "", wakilSekretaris: "", bendahara: "", wakilBendahara: "",
+    // Tambahan Baru:
+    linkDataJemaat: "", emailGereja: "", kontakWA: "", alamatLengkap: "", tautanLogo: "", visiMisi: ""
   });
   const [dataRayon, setDataRayon] = useState([]);
   const [pengaturanKategorial, setPengaturanKategorial] = useState({});
@@ -79,10 +81,11 @@ export default function SetPelayanan() {
         <h2 style={{ color: "#0A2540" }}>Set Jumlah & Waktu Pelayanan</h2>
       </div>
 
-      <div style={{ display: "flex", borderBottom: "2px solid #007BFF", marginBottom: "25px", flexWrap: "wrap" }}>
-        <button style={{ padding: "15px", flex: 1, backgroundColor: activeTab === 1 ? "#007BFF" : "#f4f4f4", color: activeTab === 1 ? "white" : "#333", border: "none", fontWeight: "bold", borderRadius: "8px 0 0 0", cursor: "pointer" }} onClick={() => setActiveTab(1)}>1. Profil Gereja</button>
-        <button style={{ padding: "15px", flex: 1, backgroundColor: activeTab === 2 ? "#007BFF" : "#f4f4f4", color: activeTab === 2 ? "white" : "#333", border: "none", fontWeight: "bold", cursor: "pointer" }} onClick={() => setActiveTab(2)}>2. Pengaturan Rayon</button>
-        <button style={{ padding: "15px", flex: 1, backgroundColor: activeTab === 3 ? "#007BFF" : "#f4f4f4", color: activeTab === 3 ? "white" : "#333", border: "none", fontWeight: "bold", borderRadius: "0 8px 0 0", cursor: "pointer" }} onClick={() => setActiveTab(3)}>3. Pelayanan Kategorial</button>
+      <div style={{ display: "flex", borderBottom: "2px solid #007BFF", marginBottom: "25px", flexWrap: "wrap", fontSize: "14px" }}>
+        <button style={{ padding: "12px", flex: 1, backgroundColor: activeTab === 1 ? "#007BFF" : "#f4f4f4", color: activeTab === 1 ? "white" : "#333", border: "none", fontWeight: "bold", borderRadius: "8px 0 0 0", cursor: "pointer" }} onClick={() => setActiveTab(1)}>1. Profil Pengurus</button>
+        <button style={{ padding: "12px", flex: 1, backgroundColor: activeTab === 2 ? "#007BFF" : "#f4f4f4", color: activeTab === 2 ? "white" : "#333", border: "none", fontWeight: "bold", cursor: "pointer" }} onClick={() => setActiveTab(2)}>2. Info Rayon</button>
+        <button style={{ padding: "12px", flex: 1, backgroundColor: activeTab === 3 ? "#007BFF" : "#f4f4f4", color: activeTab === 3 ? "white" : "#333", border: "none", fontWeight: "bold", cursor: "pointer" }} onClick={() => setActiveTab(3)}>3. Kategorial</button>
+        <button style={{ padding: "12px", flex: 1, backgroundColor: activeTab === 4 ? "#007BFF" : "#f4f4f4", color: activeTab === 4 ? "white" : "#333", border: "none", fontWeight: "bold", borderRadius: "0 8px 0 0", cursor: "pointer" }} onClick={() => setActiveTab(4)}>4. Tentang & Kontak</button>
       </div>
 
       <div style={{ backgroundColor: "white", padding: "25px", borderRadius: "8px", boxShadow: "0 4px 10px rgba(0,0,0,0.1)", border: "1px solid #ddd" }}>
@@ -149,6 +152,47 @@ export default function SetPelayanan() {
                 <button onClick={() => { let obj = { ...pengaturanKategorial }; obj[kat].daftarSektor.push({ id: obj[kat].daftarSektor.length + 1, namaSektor: "", namaPenatua: "" }); setPengaturanKategorial(obj); }} style={{ marginTop: "10px", padding: "8px 15px", backgroundColor: "#6c757d", color: "white", border: "none", borderRadius: "4px", cursor: "pointer" }}>+ Tambah Sektor/Kelompok</button>
               </div>
             ))}
+          </div>
+        )}
+
+        {activeTab === 4 && (
+          <div>
+            <h3 style={{ color: "#0A2540", marginBottom: "15px" }}>Informasi Publik & Tautan Eksternal</h3>
+            <p style={{ color: "gray", fontSize: "14px", marginBottom: "20px" }}>Data di bawah ini akan ditampilkan pada halaman profil/tentang aplikasi.</p>
+            
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" }}>
+              {/* Kolom Kiri */}
+              <div>
+                <label style={{ fontWeight: "bold", fontSize: "14px" }}>Link Database Jemaat (URL)</label>
+                <input type="url" value={profilGereja.linkDataJemaat || ""} onChange={(e) => setProfilGereja({ ...profilGereja, linkDataJemaat: e.target.value })} placeholder="https://..." style={{ width: "100%", padding: "10px", marginTop: "5px", border: "1px solid #ccc", borderRadius: "4px", boxSizing: "border-box" }} />
+              </div>
+              
+              <div>
+                <label style={{ fontWeight: "bold", fontSize: "14px" }}>Email Resmi</label>
+                <input type="email" value={profilGereja.emailGereja || ""} onChange={(e) => setProfilGereja({ ...profilGereja, emailGereja: e.target.value })} placeholder="contoh@gmail.com" style={{ width: "100%", padding: "10px", marginTop: "5px", border: "1px solid #ccc", borderRadius: "4px", boxSizing: "border-box" }} />
+              </div>
+
+              <div>
+                <label style={{ fontWeight: "bold", fontSize: "14px" }}>Nomor WhatsApp (Admin)</label>
+                <input type="text" value={profilGereja.kontakWA || ""} onChange={(e) => setProfilGereja({ ...profilGereja, kontakWA: e.target.value })} placeholder="08123456789" style={{ width: "100%", padding: "10px", marginTop: "5px", border: "1px solid #ccc", borderRadius: "4px", boxSizing: "border-box" }} />
+              </div>
+
+              <div>
+                <label style={{ fontWeight: "bold", fontSize: "14px" }}>Link URL Logo (Opsional)</label>
+                <input type="url" value={profilGereja.tautanLogo || ""} onChange={(e) => setProfilGereja({ ...profilGereja, tautanLogo: e.target.value })} placeholder="https://link-gambar-logo.png" style={{ width: "100%", padding: "10px", marginTop: "5px", border: "1px solid #ccc", borderRadius: "4px", boxSizing: "border-box" }} />
+              </div>
+
+              {/* Kolom Penuh (Alamat & Visi Misi) */}
+              <div style={{ gridColumn: "1 / span 2" }}>
+                <label style={{ fontWeight: "bold", fontSize: "14px" }}>Alamat Lengkap</label>
+                <textarea value={profilGereja.alamatLengkap || ""} onChange={(e) => setProfilGereja({ ...profilGereja, alamatLengkap: e.target.value })} rows="2" placeholder="Jl. Contoh No. 123..." style={{ width: "100%", padding: "10px", marginTop: "5px", border: "1px solid #ccc", borderRadius: "4px", boxSizing: "border-box" }} />
+              </div>
+
+              <div style={{ gridColumn: "1 / span 2" }}>
+                <label style={{ fontWeight: "bold", fontSize: "14px" }}>Visi & Misi / Deskripsi Singkat</label>
+                <textarea value={profilGereja.visiMisi || ""} onChange={(e) => setProfilGereja({ ...profilGereja, visiMisi: e.target.value })} rows="4" placeholder="Tuliskan visi, misi, atau sejarah singkat di sini..." style={{ width: "100%", padding: "10px", marginTop: "5px", border: "1px solid #ccc", borderRadius: "4px", boxSizing: "border-box" }} />
+              </div>
+            </div>
           </div>
         )}
 

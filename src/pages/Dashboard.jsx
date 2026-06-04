@@ -28,7 +28,8 @@ export default function Dashboard() {
   const user = auth.currentUser;
   
   // Ganti "email_sekretaris@gmail.com" dengan email asli yang Anda gunakan untuk login!
-  const apakahSekretaris = user && user.email === "sekretaris@haususu.com";
+  const emailSekretarisDiizinkan = ["sekretaris@haususu.com", "sekretaris@gereja.com"];
+  const apakahSekretaris = user && emailSekretarisDiizinkan.includes(user.email);
 
   useEffect(() => {
     const ambilData = async () => {
@@ -311,15 +312,28 @@ export default function Dashboard() {
       
       jadwalRayonSepekan = harianSepekan
         .filter(j => j.kategoriPelayanan === "Rayon")
-        .sort((a, b) => (a.namaUnit || "").localeCompare(b.namaUnit || "", undefined, { numeric: true, sensitivity: 'base' }));
+        .sort((a, b) => {
+          // 1. Urutkan berdasarkan Nama Rayon terlebih dahulu
+          const urutRayon = (a.namaUnit || "").localeCompare(b.namaUnit || "", undefined, { numeric: true, sensitivity: 'base' });
+          if (urutRayon !== 0) return urutRayon;
+          // 2. Jika Rayon-nya sama, urutkan berdasarkan Tanggal terkecil ke terbesar (Rabu lalu Jumat)
+          return new Date(a.tanggal) - new Date(b.tanggal);
+        });
       
       jadwalKategorialSepekan = harianSepekan
         .filter(j => j.kategoriPelayanan === "Kategorial")
         .sort((a, b) => {
+          // 1. Urutkan berdasarkan Bobot Kategori Induk
           const bobotA = getBobotKategori(a.namaKategoriInduk);
           const bobotB = getBobotKategori(b.namaKategoriInduk);
           if (bobotA !== bobotB) return bobotA - bobotB;
-          return (a.namaUnit || "").localeCompare(b.namaUnit || "", undefined, { numeric: true, sensitivity: 'base' });
+          
+          // 2. Urutkan berdasarkan Nama Sektor
+          const urutSektor = (a.namaUnit || "").localeCompare(b.namaUnit || "", undefined, { numeric: true, sensitivity: 'base' });
+          if (urutSektor !== 0) return urutSektor;
+
+          // 3. Jika Sektor-nya sama, urutkan berdasarkan Tanggal terkecil ke terbesar
+          return new Date(a.tanggal) - new Date(b.tanggal);
         });
     }
   }
