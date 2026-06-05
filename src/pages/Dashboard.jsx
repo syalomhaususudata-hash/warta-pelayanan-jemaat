@@ -10,8 +10,86 @@ export default function Dashboard() {
   const [semuaJadwalHarian, setSemuaJadwalHarian] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tanggalTerpilih, setTanggalTerpilih] = useState("");
-  const [teksWartaLain, setTeksWartaLain] = useState("");
+  
+  // STATE BARU UNTUK WARTA LAIN-LAIN
+  const stateWartaAwal = {
+    sapaan: "",
+    ulangTahun: "",
+    baptisan: "",
+    pernikahan: [{ teks: "", gambarUrl: "" }], // Sekarang berbentuk Array (Bisa banyak)
+    kematian: [{ teks: "", gambarUrl: "" }],   // Sekarang berbentuk Array (Bisa banyak)
+    pembangunan: "",
+    informasiLain: ""
+  };
+  const [wartaLain, setWartaLain] = useState(stateWartaAwal);
   const [isEditingWarta, setIsEditingWarta] = useState(false);
+
+  // FUNGSI RENDER TABEL EXCEL KHUSUS ULANG TAHUN
+  // FUNGSI RENDER TABEL EXCEL KHUSUS ULANG TAHUN (DENGAN HITUNG USIA OTOMATIS)
+  const renderTabelExcel = (text) => {
+    if (!text) return null;
+    const rows = text.trim().split('\n');
+
+    // Mesin pendeteksi tahun dan penghitung usia
+    const hitungUsia = (teksTanggal) => {
+      if (!teksTanggal) return "-";
+      let tahunLahir = null;
+      
+      // Deteksi format YYYY-MM-DD
+      if (teksTanggal.includes('-') && teksTanggal.split('-')[0].length === 4) {
+        tahunLahir = parseInt(teksTanggal.split('-')[0]);
+      } 
+      // Deteksi format DD/MM/YYYY
+      else if (teksTanggal.includes('/')) {
+        const parts = teksTanggal.split('/');
+        if (parts.length === 3) tahunLahir = parseInt(parts[2]);
+      } 
+      // Deteksi angka 4 digit beruntun (Tahun) dari teks (misal: "15 Juni 1990")
+      else {
+        const pencarianTahun = teksTanggal.match(/\b(19\d{2}|20\d{2})\b/);
+        if (pencarianTahun) tahunLahir = parseInt(pencarianTahun[0]);
+      }
+
+      if (tahunLahir) {
+        const tahunSekarang = new Date().getFullYear();
+        const usia = tahunSekarang - tahunLahir;
+        return usia > 0 ? `${usia} Tahun` : "-";
+      }
+      return "-"; // Jika sistem tidak menemukan pola tahun
+    };
+
+    return (
+      <div className="table-responsive" style={{ overflowX: "auto", width: "100%" }}>
+        <table style={{ width: '100%', minWidth: '400px', borderCollapse: 'collapse', marginTop: '10px', fontSize: '14px', backgroundColor: '#fff' }}>
+          <thead>
+            <tr style={{ backgroundColor: "#0A2540", color: "#fff" }}>
+              <th style={{ border: '1px solid #ddd', padding: '12px', textAlign: 'left', width: '45%' }}>Nama Jemaat</th>
+              <th style={{ border: '1px solid #ddd', padding: '12px', textAlign: 'left', width: '35%' }}>Tanggal Lahir</th>
+              <th style={{ border: '1px solid #ddd', padding: '12px', textAlign: 'center', width: '20%' }}>HUT Ke-</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => {
+              const cells = row.split('\t'); // Memisahkan kolom excel berdasarkan 'Tab'
+              const nama = cells[0] || "-";
+              const tglLahir = cells[1] || "-";
+              const usiaOtomatis = hitungUsia(tglLahir);
+
+              return (
+                <tr key={i} style={{ borderBottom: '1px solid #ddd' }}>
+                  <td style={{ border: '1px solid #ddd', padding: '10px' }}>{nama}</td>
+                  <td style={{ border: '1px solid #ddd', padding: '10px' }}>{tglLahir}</td>
+                  <td style={{ border: '1px solid #ddd', padding: '10px', textAlign: 'center', fontWeight: 'bold', color: '#dc3545', backgroundColor: '#fdf1f1' }}>
+                    {usiaOtomatis}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
 
   const [fileKeuangan, setFileKeuangan] = useState([]);
   const [isKeuanganTersimpan, setIsKeuanganTersimpan] = useState(false);
@@ -95,9 +173,30 @@ export default function Dashboard() {
         const docRefTeks = doc(db, "warta_lainnya_teks", tanggalTerpilih);
         const docSnapTeks = await getDoc(docRefTeks);
         if (docSnapTeks.exists()) {
-          setTeksWartaLain(docSnapTeks.data().teks);
+          const data = docSnapTeks.data();
+          if (typeof data.teks === 'string' && !data.warta) {
+            setWartaLain({ ...stateWartaAwal, informasiLain: data.teks });
+          } else if (data.warta) {
+            
+            // --- MULAI NORMALISASI DATA (ANTI CRASH) ---
+            let wartaAman = { ...stateWartaAwal, ...data.warta };
+            
+            // Jika pernikahan masih berupa Object (data lama), bungkus jadi Array
+            if (!Array.isArray(wartaAman.pernikahan)) {
+              wartaAman.pernikahan = wartaAman.pernikahan ? [wartaAman.pernikahan] : [{ teks: "", gambarUrl: "" }];
+            }
+            
+            // Jika kematian masih berupa Object (data lama), bungkus jadi Array
+            if (!Array.isArray(wartaAman.kematian)) {
+              wartaAman.kematian = wartaAman.kematian ? [wartaAman.kematian] : [{ teks: "", gambarUrl: "" }];
+            }
+            
+            setWartaLain(wartaAman);
+            // --- SELESAI NORMALISASI ---
+
+          }
         } else {
-          setTeksWartaLain(""); 
+          setWartaLain(stateWartaAwal); 
         }
 
         const docRefKeuangan = doc(db, "warta_keuangan_arsip", tanggalTerpilih);
@@ -118,11 +217,11 @@ export default function Dashboard() {
     if (!tanggalTerpilih) return;
     try {
       await setDoc(doc(db, "warta_lainnya_teks", tanggalTerpilih), {
-        teks: teksWartaLain,
+        warta: wartaLain,
         tanggal: tanggalTerpilih
       });
       setIsEditingWarta(false);
-      alert("Teks Warta Lain-lain berhasil disimpan!");
+      alert("Warta Lain-lain berhasil disimpan!");
     } catch (e) {
       console.error(e);
       alert("Gagal menyimpan warta.");
@@ -133,7 +232,7 @@ export default function Dashboard() {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    const validImages = Array.from(files).filter(f => f.type.includes("image"));
+    const validImages = Array.from(files).filter(f => f.type.includes("image") || f.type === "application/pdf");
     
     if (validImages.length > 0) {
       setFileKeuangan(prevLama => {
@@ -341,6 +440,37 @@ export default function Dashboard() {
   return (
     <div style={{ maxWidth: "1000px", margin: "0 auto", fontFamily: "Arial", padding: "20px" }}>
       <style dangerouslySetInnerHTML={{__html: `
+        /* --- MENGATUR VISIBILITAS DESKTOP VS MOBILE --- */
+        /* Pastikan narasi HILANG MUTLAK di layar besar */
+        .card-mobile { display: none !important; }
+        .tabel-desktop { display: table !important; width: 100%; }
+
+        /* Tampilkan Narasi HANYA saat layar HP (Lebar max 768px) */
+        @media screen and (max-width: 768px) {
+          .tabel-desktop { display: none !important; }
+          .card-mobile { display: flex !important; flex-direction: column !important; }
+        }
+
+        /* Saat Cetak PDF/Kertas, paksa tabel muncul dan narasi hilang */
+        @media print {
+          .tabel-desktop { display: table !important; width: 100% !important; }
+          .card-mobile { display: none !important; }
+        }
+          
+        /* --- MENGATUR VISIBILITAS DESKTOP VS MOBILE --- */
+        .tabel-desktop { display: table; width: 100%; }
+        .card-mobile { display: none; }
+
+        @media screen and (max-width: 768px) {
+          .tabel-desktop { display: none !important; }
+          .card-mobile { display: block !important; }
+        }
+
+        @media print {
+          .tabel-desktop { display: table !important; }
+          .card-mobile { display: none !important; }
+        }
+
         /* --- KELAS UNTUK TAMPILAN LAYAR (LOCALHOST) --- */
         .screen-none { display: none; }
         .screen-block { display: block; }
@@ -351,6 +481,16 @@ export default function Dashboard() {
           overflow-x: auto;
           -webkit-overflow-scrolling: touch;
           margin-bottom: 40px;
+        }
+
+        /* --- TAMPILAN MOBILE (Card View Khusus Tabel) --- */
+        @media screen and (max-width: 768px) {
+          .table-responsive table, .table-responsive thead, .table-responsive tbody, .table-responsive th, .table-responsive td, .table-responsive tr { display: block; }
+          .table-responsive thead tr { position: absolute; top: -9999px; left: -9999px; }
+          .table-responsive tr { border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 15px; background-color: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.05); padding: 10px; }
+          .table-responsive td { border: none !important; border-bottom: 1px solid #eee !important; position: relative; padding: 10px 10px 10px 45% !important; text-align: right; min-height: 40px; }
+          .table-responsive td:last-child { border-bottom: none !important; }
+          .table-responsive td:before { position: absolute; top: 10px; left: 10px; width: 40%; padding-right: 10px; white-space: nowrap; content: attr(data-label); text-align: left; font-weight: bold; color: #64748b; }
         }
 
         /* --- ATURAN PENCETAKAN (PRINT CSS) --- */
@@ -538,7 +678,8 @@ export default function Dashboard() {
                     {(mingguIni.masa_raya || mingguIni.tema || "KEBAKTIAN MINGGU").toUpperCase()}
                   </h4>
                   
-                  <div className="table-responsive">
+                  {/* --- VERSI TABEL DESKTOP / CETAK --- */}
+                  <div className="table-responsive tabel-desktop">
                     <table style={{ width: "100%", minWidth: "650px", borderCollapse: "collapse", fontSize: "14px" }}>
                       <thead>
                         <tr style={{ backgroundColor: "#f4f4f4", borderBottom: "2px solid #ccc", textAlign: "left" }}>
@@ -548,20 +689,82 @@ export default function Dashboard() {
                         </tr>
                       </thead>
                       <tbody>
-                        {['petugas', 'pendamping', 'baca_firman', 'doa_persembahan', 'mazmur', 'pembacaan', 'masa_raya', 'tema', 'stola', 'busana', 'psvg', 'pemandu_lagu', 'pemandu_lagu_rayon'].map((k) => (
-                          <tr key={k}>
-                            <td style={{ padding:"10px", border:"1px solid #ddd", fontWeight:"bold", textTransform: "capitalize" }}>
-                              {/* Logika untuk menampilkan nama label dengan rapi */}
-                              {k === 'pemandu_lagu' ? 'Pemandu Lagu' : 
-                              k === 'pemandu_lagu_rayon' ? 'Pemandu Lagu dari Rayon' : 
-                              k.replace(/_/g, ' ')}
-                            </td>
-                            <td style={{ padding:"10px", border:"1px solid #ddd", textAlign:"center", color: k === 'petugas' ? "#007BFF" : "black", fontWeight: k === 'petugas' ? "bold" : "normal" }}>{mingguIni[k] || "-"}</td>
-                            <td style={{ padding:"10px", border:"1px solid #ddd", textAlign:"center" }}>{mingguDepan?.[k] || "-"}</td>
-                          </tr>
-                        ))}
+                        {['petugas', 'pendamping', 'baca_firman', 'doa_persembahan', 'mazmur', 'pembacaan', 'masa_raya', 'tema', 'stola', 'busana', 'psvg', 'pemandu_lagu', 'pemandu_lagu_rayon'].map((k) => {
+                          // Variabel pembantu untuk nama parameter
+                          const namaParameter = k === 'pemandu_lagu' ? 'Pemandu Lagu' : k === 'pemandu_lagu_rayon' ? 'Pemandu Lagu dari Rayon' : k.replace(/_/g, ' ');
+                          
+                          return (
+                            <tr key={k}>
+                              <td data-label="Parameter" style={{ padding:"10px", border:"1px solid #ddd", fontWeight:"bold", textTransform: "capitalize" }}>
+                                {namaParameter}
+                              </td>
+                              <td data-label="Minggu Ini" style={{ padding:"10px", border:"1px solid #ddd", textAlign:"center", color: k === 'petugas' ? "#007BFF" : "black", fontWeight: "bold" }}>
+                                {mingguIni[k] || "-"}
+                              </td>
+                              <td data-label="Minggu Depan" style={{ padding:"10px", border:"1px solid #ddd", textAlign:"center", fontWeight: "bold" }}>
+                                {mingguDepan?.[k] || "-"}
+                              </td>
+                            </tr>
+                          )
+                        })}
                       </tbody>
                     </table>
+                  </div>
+
+                  {/* --- VERSI NARASI CARD HP (HANYA MUNCUL DI LAYAR KECIL) --- */}
+                  <div className="card-mobile no-print" style={{ display: "flex", flexDirection: "column", gap: "15px", marginBottom: "25px" }}>
+                    
+                    {/* KARTU MINGGU INI */}
+                    <div style={{ backgroundColor: "#e0f7fa", padding: "20px", borderRadius: "12px", border: "1px solid #b2ebf2", boxShadow: "0 4px 6px rgba(0,0,0,0.05)" }}>
+                      <h4 style={{ margin: "0 0 10px 0", color: "#006064", borderBottom: "2px solid #00acc1", paddingBottom: "5px" }}>Minggu Ini</h4>
+                      <p style={{ margin: "5px 0", lineHeight: "1.6", fontSize: "15px", color: "#333" }}>
+                        <b style={{fontWeight: "900", color: "#000"}}>{formatTgl(mingguIni.tanggal)}</b><br/>
+                        <b style={{fontWeight: "900", color: "#000"}}>{mingguIni.masa_raya}</b><br/>
+                        Tema: <b style={{fontWeight: "900", color: "#000"}}>{mingguIni.tema}</b><br/>
+                        Pembacaan <b style={{fontWeight: "900", color: "#000"}}>{mingguIni.pembacaan}</b> dengan Mazmur <b style={{fontWeight: "900", color: "#000"}}>{mingguIni.mazmur}</b>
+                        
+                        <br/><br/>{/* JARAK 1: Antara Mazmur dan Petugas */}
+
+                        Yang bertugas minggu ini <b style={{fontWeight: "900", color: "#000"}}>{mingguIni.petugas}</b> dengan pendamping <b style={{fontWeight: "900", color: "#000"}}>{mingguIni.pendamping}</b><br/>
+                        Yang membaca firman <b style={{fontWeight: "900", color: "#000"}}>{mingguIni.baca_firman}</b><br/>
+                        Doa persembahan oleh <b style={{fontWeight: "900", color: "#000"}}>{mingguIni.doa_persembahan}</b>
+                        
+                        <br/><br/>{/* JARAK 2: Antara Doa Persembahan dan Stola */}
+
+                        Dengan stola <b style={{fontWeight: "900", color: "#000"}}>{mingguIni.stola}</b> dan berbusana <b style={{fontWeight: "900", color: "#000"}}>{mingguIni.busana}</b>
+                        
+                        <br/><br/>{/* JARAK 3: Antara Stola dan Pemandu Lagu */}
+
+                        Yang mengisi pujian <b style={{fontWeight: "900", color: "#000"}}>{mingguIni.psvg}</b> dengan pemandu lagu <b style={{fontWeight: "900", color: "#000"}}>{mingguIni.pemandu_lagu}</b> dan pemandu lagu dari rayon <b style={{fontWeight: "900", color: "#000"}}>{mingguIni.pemandu_lagu_rayon}</b>.
+                      </p>
+                    </div>
+
+                    {/* KARTU MINGGU DEPAN */}
+                    {mingguDepan && (
+                      <div style={{ backgroundColor: "#fff9c4", padding: "20px", borderRadius: "12px", border: "1px solid #fff59d", boxShadow: "0 4px 6px rgba(0,0,0,0.05)" }}>
+                        <h4 style={{ margin: "0 0 10px 0", color: "#f57f17", borderBottom: "2px solid #fbc02d", paddingBottom: "5px" }}>Minggu Depan</h4>
+                        <p style={{ margin: "5px 0", lineHeight: "1.6", fontSize: "15px", color: "#333" }}>
+                          <b style={{fontWeight: "900", color: "#000"}}>{formatTgl(mingguDepan.tanggal)}</b><br/>
+                          <b style={{fontWeight: "900", color: "#000"}}>{mingguDepan.masa_raya}</b><br/>
+                          Tema: <b style={{fontWeight: "900", color: "#000"}}>{mingguDepan.tema}</b><br/>
+                          Pembacaan <b style={{fontWeight: "900", color: "#000"}}>{mingguDepan.pembacaan}</b> dengan Mazmur <b style={{fontWeight: "900", color: "#000"}}>{mingguDepan.mazmur}</b>
+                          
+                          <br/><br/>{/* JARAK 1: Antara Mazmur dan Petugas */}
+
+                          Yang bertugas minggu depan <b style={{fontWeight: "900", color: "#000"}}>{mingguDepan.petugas}</b> dengan pendamping <b style={{fontWeight: "900", color: "#000"}}>{mingguDepan.pendamping}</b><br/>
+                          Yang membaca firman <b style={{fontWeight: "900", color: "#000"}}>{mingguDepan.baca_firman}</b><br/>
+                          Doa persembahan oleh <b style={{fontWeight: "900", color: "#000"}}>{mingguDepan.doa_persembahan}</b>
+                          
+                          <br/><br/>{/* JARAK 2: Antara Doa Persembahan dan Stola */}
+
+                          Dengan stola <b style={{fontWeight: "900", color: "#000"}}>{mingguDepan.stola}</b> dan berbusana <b style={{fontWeight: "900", color: "#000"}}>{mingguDepan.busana}</b>
+                          
+                          <br/><br/>{/* JARAK 3: Antara Stola dan Pemandu Lagu */}
+
+                          Yang mengisi pujian <b style={{fontWeight: "900", color: "#000"}}>{mingguDepan.psvg}</b> dengan pemandu lagu <b style={{fontWeight: "900", color: "#000"}}>{mingguDepan.pemandu_lagu}</b> dan pemandu lagu dari rayon <b style={{fontWeight: "900", color: "#000"}}>{mingguDepan.pemandu_lagu_rayon}</b>.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </>
               ) : <p style={{ textAlign: "center", fontStyle: "italic", color: "red", marginBottom: "30px" }}>Tidak ada Jadwal Kebaktian untuk pekan ini.</p>}
@@ -572,26 +775,113 @@ export default function Dashboard() {
                   isSekretaris={apakahSekretaris} 
                 /> 
 
-              {/* TABEL IBADAH RAYON */}
+              {/* TABEL & CARD IBADAH RAYON */}
               <h4 style={{ borderBottom: "2px solid #0A2540", paddingBottom: "8px", color: "#0A2540", fontSize: "16px", marginTop: !mingguIni ? "0" : "20px" }}>PELAYANAN IBADAH RAYON SEPEKAN</h4>
               {jadwalRayonSepekan.length > 0 ? (
-                <div className="table-responsive">
-                  <table style={{ width: "100%", minWidth: "650px", borderCollapse: "collapse", fontSize: "14px" }}>
-                    <thead><tr style={{ backgroundColor: "#f4f4f4" }}><th style={{ padding: "10px", border: "1px solid #ddd", textAlign: "left" }}>Rayon</th><th style={{ padding: "10px", border: "1px solid #ddd", textAlign: "left" }}>Hari & Tanggal</th><th style={{ padding: "10px", border: "1px solid #ddd", textAlign: "left" }}>Keluarga Pelayan</th><th style={{ padding: "10px", border: "1px solid #ddd", textAlign: "left" }}>Penatua Bertugas</th></tr></thead>
-                    <tbody>{jadwalRayonSepekan.map((j, i) => <tr key={i}><td style={{ padding:"10px", border:"1px solid #ddd", fontWeight:"bold" }}>{j.namaUnit}</td><td style={{ padding:"10px", border:"1px solid #ddd" }}>{namaHari(j.tanggal)},<br/>{formatTgl(j.tanggal)}</td><td style={{ padding:"10px", border:"1px solid #ddd" }}>{j.tempatKeluarga}</td><td style={{ padding:"10px", border:"1px solid #ddd" }}>{j.petugas}</td></tr>)}</tbody>
-                  </table>
-                </div>
+                <>
+                  {/* VERSI TABEL DESKTOP */}
+                  <div className="table-responsive tabel-desktop">
+                    <table style={{ width: "100%", minWidth: "650px", borderCollapse: "collapse", fontSize: "14px" }}>
+                      <thead><tr style={{ backgroundColor: "#f4f4f4" }}><th style={{ padding: "10px", border: "1px solid #ddd", textAlign: "left" }}>Rayon</th><th style={{ padding: "10px", border: "1px solid #ddd", textAlign: "left" }}>Hari & Tanggal</th><th style={{ padding: "10px", border: "1px solid #ddd", textAlign: "left" }}>Keluarga Pelayan</th><th style={{ padding: "10px", border: "1px solid #ddd", textAlign: "left" }}>Penatua Bertugas</th></tr></thead>
+                      <tbody>
+                        {jadwalRayonSepekan.map((j, i) => (
+                          <tr key={i}>
+                            <td data-label="Rayon" style={{ padding:"10px", border:"1px solid #ddd", fontWeight:"bold" }}>{j.namaUnit}</td>
+                            <td data-label="Hari & Tanggal" style={{ padding:"10px", border:"1px solid #ddd" }}>{namaHari(j.tanggal)},<br/>{formatTgl(j.tanggal)}</td>
+                            <td data-label="Keluarga Pelayan" style={{ padding:"10px", border:"1px solid #ddd" }}>{j.tempatKeluarga}</td>
+                            <td data-label="Penatua Bertugas" style={{ padding:"10px", border:"1px solid #ddd" }}>{j.petugas}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* VERSI NARASI CARD HP - RAYON (WARNA KONSISTEN PER NAMA RAYON) */}
+                  <div className="card-mobile no-print" style={{ display: "grid", gridTemplateColumns: "1fr", gap: "10px", marginBottom: "25px" }}>
+                    {jadwalRayonSepekan.map((j, i) => {
+                      const paletRayon = [
+                        { bg: "#e8f5e9", border: "#c8e6c9", left: "#43a047", text: "#2e7d32" }, // Hijau
+                        { bg: "#e3f2fd", border: "#bbdefb", left: "#1e88e5", text: "#1565c0" }, // Biru
+                        { bg: "#fff3e0", border: "#ffe0b2", left: "#fb8c00", text: "#ef6c00" }, // Orange
+                        { bg: "#fce4ec", border: "#f8bbd0", left: "#d81b60", text: "#ad1457" }, // Pink
+                        { bg: "#f3e5f5", border: "#e1bee7", left: "#8e24aa", text: "#6a1b9a" }  // Ungu
+                      ];
+                      
+                      // LOGIKA BARU: Menghitung kode warna berdasarkan Teks Nama Rayon
+                      const hitungKode = (j.namaUnit || "").split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
+                      const warna = paletRayon[hitungKode % paletRayon.length];
+
+                      return (
+                        <div key={i} style={{ backgroundColor: warna.bg, padding: "15px", borderRadius: "10px", border: `1px solid ${warna.border}`, borderLeft: `5px solid ${warna.left}` }}>
+                          <h4 style={{ margin: "0 0 10px 0", color: warna.text, borderBottom: `1px solid ${warna.border}`, paddingBottom: "5px" }}>{j.namaUnit}</h4>
+                          <p style={{ margin: 0, fontSize: "14px", lineHeight: "1.8", color: "#333" }}>
+                            Ibadah rayon pada hari <b style={{fontWeight: "900", color: "#000"}}>{namaHari(j.tanggal)}, {formatTgl(j.tanggal)}</b><br/>
+                            di rumah keluarga <b style={{fontWeight: "900", color: "#000"}}>{j.tempatKeluarga}</b><br/>
+                            dengan petugas <b style={{fontWeight: "900", color: "#000"}}>{j.petugas}</b>.
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
               ) : <p style={{ color: "gray", fontStyle: "italic", marginBottom: "40px" }}>Tidak ada jadwal ibadah rayon pada pekan ini.</p>}
 
-              {/* TABEL KATEGORIAL */}
+              {/* TABEL & CARD KATEGORIAL */}
               <h4 style={{ borderBottom: "2px solid #0A2540", paddingBottom: "8px", color: "#0A2540", fontSize: "16px" }}>PELAYANAN KATEGORIAL & TAMBAHAN SEPEKAN</h4>
               {jadwalKategorialSepekan.length > 0 ? (
-                <div className="table-responsive">
-                  <table style={{ width: "100%", minWidth: "650px", borderCollapse: "collapse", fontSize: "14px" }}>
-                    <thead><tr style={{ backgroundColor: "#f4f4f4" }}><th style={{ padding: "10px", border: "1px solid #ddd", textAlign: "left" }}>Kategori & Sektor</th><th style={{ padding: "10px", border: "1px solid #ddd", textAlign: "left" }}>Hari & Tanggal</th><th style={{ padding: "10px", border: "1px solid #ddd", textAlign: "left" }}>Tempat / Anggota</th><th style={{ padding: "10px", border: "1px solid #ddd", textAlign: "left" }}>Petugas Pelayan</th></tr></thead>
-                    <tbody>{jadwalKategorialSepekan.map((j, i) => <tr key={i}><td style={{ padding:"10px", border:"1px solid #ddd", fontWeight:"bold" }}>{j.namaKategoriInduk} - {j.namaUnit}</td><td style={{ padding:"10px", border:"1px solid #ddd" }}>{namaHari(j.tanggal)},<br/>{formatTgl(j.tanggal)}</td><td style={{ padding:"10px", border:"1px solid #ddd" }}>{j.tempatKeluarga}</td><td style={{ padding:"10px", border:"1px solid #ddd" }}>{j.petugas}</td></tr>)}</tbody>
-                  </table>
-                </div>
+                <>
+                  {/* VERSI TABEL DESKTOP */}
+                  <div className="table-responsive tabel-desktop">
+                    <table style={{ width: "100%", minWidth: "650px", borderCollapse: "collapse", fontSize: "14px" }}>
+                      <thead><tr style={{ backgroundColor: "#f4f4f4" }}><th style={{ padding: "10px", border: "1px solid #ddd", textAlign: "left" }}>Kategori & Sektor</th><th style={{ padding: "10px", border: "1px solid #ddd", textAlign: "left" }}>Hari & Tanggal</th><th style={{ padding: "10px", border: "1px solid #ddd", textAlign: "left" }}>Tempat / Anggota</th><th style={{ padding: "10px", border: "1px solid #ddd", textAlign: "left" }}>Petugas Pelayan</th></tr></thead>
+                      <tbody>
+                        {jadwalKategorialSepekan.map((j, i) => (
+                          <tr key={i}>
+                            <td data-label="Kategori & Sektor" style={{ padding:"10px", border:"1px solid #ddd", fontWeight:"bold" }}>{j.namaKategoriInduk} - {j.namaUnit}</td>
+                            <td data-label="Hari & Tanggal" style={{ padding:"10px", border:"1px solid #ddd" }}>{namaHari(j.tanggal)},<br/>{formatTgl(j.tanggal)}</td>
+                            <td data-label="Tempat / Anggota" style={{ padding:"10px", border:"1px solid #ddd" }}>{j.tempatKeluarga}</td>
+                            <td data-label="Petugas Pelayan" style={{ padding:"10px", border:"1px solid #ddd" }}>{j.petugas}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* VERSI NARASI CARD HP - KATEGORIAL (DENGAN WARNA & NARASI DINAMIS TAHAN BANTING) */}
+                  <div className="card-mobile no-print" style={{ display: "grid", gridTemplateColumns: "1fr", gap: "10px", marginBottom: "25px" }}>
+                    {jadwalKategorialSepekan.map((j, i) => {
+                      const paletKategorial = [
+                        { bg: "#e0f2f1", border: "#b2dfdb", left: "#00897b", text: "#00695c" }, // Teal
+                        { bg: "#fff8e1", border: "#ffecb3", left: "#ffb300", text: "#ff8f00" }, // Amber
+                        { bg: "#e8eaf6", border: "#c5cae9", left: "#3f51b5", text: "#283593" }, // Indigo
+                        { bg: "#fbe9e7", border: "#ffccbc", left: "#f4511e", text: "#d84315" }, // Deep Orange
+                        { bg: "#e0f7fa", border: "#b2ebf2", left: "#00acc1", text: "#00838f" }  // Cyan
+                      ];
+                      
+                      const hitungKode = (j.namaKategoriInduk || "").split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
+                      const warna = paletKategorial[hitungKode % paletKategorial.length];
+
+                      // LOGIKA BARU: Detektor Ganda (Cek Induk dan Cek Unit)
+                      const teksInduk = (j.namaKategoriInduk || "").toLowerCase().trim();
+                      const teksUnit = (j.namaUnit || "").toLowerCase().trim();
+                      
+                      // Jika salah satunya mengandung kata "doa", ubah narasinya!
+                      const isPersekutuanDoa = teksInduk.includes("doa") || teksUnit.includes("doa");
+                      const awalanNarasi = isPersekutuanDoa ? `Pelayanan ${j.namaUnit}` : "Pelayanan kategorial";
+
+                      return (
+                        <div key={i} style={{ backgroundColor: warna.bg, padding: "15px", borderRadius: "10px", border: `1px solid ${warna.border}`, borderLeft: `5px solid ${warna.left}` }}>
+                          <h4 style={{ margin: "0 0 10px 0", color: warna.text, borderBottom: `1px solid ${warna.border}`, paddingBottom: "5px" }}>{j.namaKategoriInduk} - {j.namaUnit}</h4>
+                          <p style={{ margin: 0, fontSize: "14px", lineHeight: "1.8", color: "#333" }}>
+                            {awalanNarasi} pada hari <b style={{fontWeight: "900", color: "#000"}}>{namaHari(j.tanggal)}, {formatTgl(j.tanggal)}</b><br/>
+                            bertempat di <b style={{fontWeight: "900", color: "#000"}}>{j.tempatKeluarga}</b><br/>
+                            dengan petugas pelayan <b style={{fontWeight: "900", color: "#000"}}>{j.petugas}</b>.
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
               ) : <p style={{ color: "gray", fontStyle: "italic" }}>Tidak ada jadwal kategorial pada pekan ini.</p>}
             </div>
           )}
@@ -601,24 +891,44 @@ export default function Dashboard() {
         <div className={`print-section ${tabAktif === "keuangan" ? "screen-block" : "screen-none"}`}>
           <h2 className="print-only" style={{ textAlign: "center", borderBottom: "2px solid #eee", paddingBottom: "10px", color: "black", marginTop: "20px" }}>Laporan Keuangan Jemaat</h2>
           
-          <div className="no-print" style={{ backgroundColor: "#fdf1f1", padding: "30px", borderRadius: "8px", border: "2px dashed #dc3545", textAlign: "center", marginBottom: "30px", marginTop: "20px" }}>
-            
-            {/* PASTIKAN LABEL DAN INPUT TERPISAH SEPERTI INI */}
-            <label htmlFor="tombol-upload-mutlak" style={{ cursor: "pointer", fontWeight: "bold", color: "white", display: "inline-block", padding: "12px 25px", backgroundColor: "#dc3545", border: "none", borderRadius: "5px" }}>
-              ➕ Tambahkan Gambar Laporan
-            </label>
-            
-            <input 
-              id="tombol-upload-mutlak"
-              type="file" 
-              multiple 
-              accept=".png,.jpg,.jpeg" 
-              style={{ display: "none" }} 
-              onChange={handlePilihGambar} 
-            />
-            
-            <p style={{ marginTop: "10px", fontSize: "13px", color: "gray" }}>Anda dapat memilih lebih dari 1 file gambar sekaligus (JPG/PNG).</p>
-          </div>
+          {/* HANYA MUNCUL JIKA SEKRETARIS YANG LOGIN */}
+          {apakahSekretaris && (
+            <div className="no-print" style={{ backgroundColor: "#fdf1f1", padding: "30px", borderRadius: "8px", border: "2px dashed #dc3545", textAlign: "center", marginBottom: "30px", marginTop: "20px" }}>
+              
+              {/* OPSI 1: PASTE URL (LINK MANUAL) */}
+              <div style={{ marginBottom: "25px", backgroundColor: "#fff", padding: "15px", borderRadius: "8px", border: "1px solid #f5c6cb" }}>
+                <label style={{ fontWeight: "bold", display: "block", marginBottom: "10px", color: "#333" }}>🔗 Opsi 1: Paste URL / Link Laporan (PDF/Gambar dari Drive)</label>
+                <div style={{ display: "flex", gap: "10px", justifyContent: "center", flexWrap: "wrap" }}>
+                  <input 
+                    type="text" 
+                    id="input-url-keuangan" 
+                    placeholder="Contoh: https://link-google-drive.com/file.pdf" 
+                    style={{ flex: "1", minWidth: "250px", maxWidth: "500px", padding: "10px", borderRadius: "5px", border: "1px solid #ccc" }} 
+                  />
+                  <button onClick={() => {
+                    const inputEl = document.getElementById("input-url-keuangan");
+                    if(inputEl.value.trim() !== "") {
+                      setFileKeuangan(prev => [...prev, inputEl.value]);
+                      setIsKeuanganTersimpan(false);
+                      inputEl.value = ""; // Kosongkan input setelah ditambah
+                    }
+                  }} style={{ padding: "10px 20px", backgroundColor: "#007BFF", color: "white", border: "none", borderRadius: "5px", cursor: "pointer", fontWeight: "bold" }}>
+                    ➕ Tambahkan Link
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ margin: "20px 0", color: "gray", fontWeight: "bold" }}>ATAU</div>
+
+              {/* OPSI 2: UPLOAD FILE (LAPTOP/HP) */}
+              <label htmlFor="tombol-upload-mutlak" style={{ cursor: "pointer", fontWeight: "bold", color: "white", display: "inline-block", padding: "12px 25px", backgroundColor: "#dc3545", border: "none", borderRadius: "5px" }}>
+                📄 / 📸 Opsi 2: Upload File (PDF / Gambar)
+              </label>
+              
+              <input id="tombol-upload-mutlak" type="file" multiple accept=".png,.jpg,.jpeg,.pdf" style={{ display: "none" }} onChange={handlePilihGambar} />
+              <p style={{ marginTop: "10px", fontSize: "13px", color: "gray" }}>Pilih file langsung dari memori perangkat (PDF/JPG/PNG).</p>
+            </div>
+          )}
 
           {fileKeuangan.length > 0 ? (
             <div style={{ marginTop: "20px" }}>
@@ -667,15 +977,36 @@ export default function Dashboard() {
                       </button>
                     </div>
 
-                    {/* AREA GAMBAR: Aman dari tumpukan teks */}
-                    <div style={{ padding: "15px", backgroundColor: "#f4f4f4" }}>
-                      <img 
-                        src={typeof file === "string" ? file : (file ? URL.createObjectURL(file) : "")} 
-                        alt={`Keuangan ${index + 1}`} 
-                        className="item-gambar-cetak"
-                        style={{ width: "100%", height: "auto", display: "block", minHeight: "200px", objectFit: "contain" }} 
-                        onError={(e) => { e.target.src = "https://via.placeholder.com/800x400?text=Gambar+Tidak+Tersedia"; }}
-                      />
+                    {/* AREA KONTEN: Mendukung Gambar & PDF */}
+                    <div style={{ padding: "15px", backgroundColor: "#f4f4f4", display: "flex", justifyContent: "center", alignItems: "center", minHeight: "200px" }}>
+                      {/* LOGIKA PENGECEKAN: Apakah ini PDF? */}
+                      {(typeof file === "string" ? file.toLowerCase().endsWith(".pdf") : file && file.type === "application/pdf") ? (
+                        
+                        /* JIKA PDF: Tampilkan Ikon & Tombol Buka */
+                        <div style={{ textAlign: "center", padding: "20px" }}>
+                          <div style={{ fontSize: "50px", marginBottom: "10px" }}>📄</div>
+                          <h4 style={{ margin: "0 0 15px 0", color: "#333" }}>Laporan Dokumen PDF</h4>
+                          {typeof file === "string" ? (
+                            <a href={file} target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", backgroundColor: "#007BFF", color: "white", padding: "8px 20px", borderRadius: "5px", textDecoration: "none", fontWeight: "bold" }}>
+                              📥 Buka / Download PDF
+                            </a>
+                          ) : (
+                            <span style={{ color: "#28a745", fontWeight: "bold" }}>File siap diunggah ke server...</span>
+                          )}
+                        </div>
+
+                      ) : (
+
+                        /* JIKA GAMBAR: Tampilkan Seperti Biasa */
+                        <img 
+                          src={typeof file === "string" ? file : (file ? URL.createObjectURL(file) : "")} 
+                          alt={`Laporan ${index + 1}`} 
+                          className="item-gambar-cetak"
+                          style={{ width: "100%", height: "auto", display: "block", maxHeight: "600px", objectFit: "contain" }} 
+                          onError={(e) => { e.target.src = "https://via.placeholder.com/800x400?text=Gambar+Tidak+Tersedia"; }}
+                        />
+
+                      )}
                     </div>
 
                   </div>
@@ -691,25 +1022,157 @@ export default function Dashboard() {
         <div className={`print-section ${tabAktif === "lainnya" ? "screen-block" : "screen-none"}`}>
           <h2 className="print-only" style={{ textAlign: "center", borderBottom: "2px solid #eee", paddingBottom: "10px", color: "black", marginTop: "20px" }}>Warta Lain-lain</h2>
           
-          <div className="no-print" style={{ textAlign: "right", marginBottom: "15px" }}>
-            {isEditingWarta ? (
-              <button onClick={simpanWartaLain} style={{ padding: "8px 20px", backgroundColor: "#007BFF", color: "white", border: "none", borderRadius: "5px", cursor: "pointer", fontWeight: "bold" }}>💾 Simpan Teks</button>
-            ) : (
-              <button onClick={() => setIsEditingWarta(true)} style={{ padding: "8px 20px", backgroundColor: "#f8f9fa", color: "#333", border: "1px solid #ccc", borderRadius: "5px", cursor: "pointer" }}>📝 Edit (Copy-Paste dari Word)</button>
-            )}
-          </div>
+          {/* TOMBOL EDIT HANYA MUNCUL JIKA USER ADALAH SEKRETARIS */}
+          {apakahSekretaris && (
+            <div className="no-print" style={{ textAlign: "right", marginBottom: "15px", backgroundColor: "#fff3cd", padding: "10px", borderRadius: "5px", border: "1px solid #ffeeba" }}>
+              <span style={{ marginRight: "15px", fontWeight: "bold", color: "#856404" }}>🔒 Akses Admin Warta</span>
+              {isEditingWarta ? (
+                <button onClick={simpanWartaLain} style={{ padding: "8px 20px", backgroundColor: "#28a745", color: "white", border: "none", borderRadius: "5px", cursor: "pointer", fontWeight: "bold" }}>💾 Simpan Perubahan</button>
+              ) : (
+                <button onClick={() => setIsEditingWarta(true)} style={{ padding: "8px 20px", backgroundColor: "#007BFF", color: "white", border: "none", borderRadius: "5px", cursor: "pointer", fontWeight: "bold" }}>✏️ Edit Warta Kategori</button>
+              )}
+            </div>
+          )}
 
           {isEditingWarta ? (
-            <textarea
-              className="no-print"
-              value={teksWartaLain}
-              onChange={(e) => setTeksWartaLain(e.target.value)}
-              placeholder="Paste teks (copy dari Microsoft Word) di sini..."
-              style={{ width: "100%", height: "400px", padding: "15px", borderRadius: "8px", border: "1px solid #007BFF", fontFamily: "Arial", fontSize: "14px", lineHeight: "1.6", boxSizing: "border-box" }}
-            />
+            <div className="no-print" style={{ display: "flex", flexDirection: "column", gap: "15px", backgroundColor: "#f8f9fa", padding: "20px", borderRadius: "8px", border: "1px solid #ddd" }}>
+              
+              <div><label style={{fontWeight: "bold"}}>1. Sapaan</label>
+              <textarea value={wartaLain.sapaan} onChange={(e) => setWartaLain({...wartaLain, sapaan: e.target.value})} style={{width: "100%", height: "80px", padding: "10px", borderRadius: "5px", border: "1px solid #ccc"}} /></div>
+
+              <div><label style={{fontWeight: "bold"}}>2. Ucapan Selamat Ulang Tahun (Copy-Paste Excel Kolom Nama & Tgl)</label>
+              <textarea value={wartaLain.ulangTahun} onChange={(e) => setWartaLain({...wartaLain, ulangTahun: e.target.value})} placeholder="Paste dari excel di sini..." style={{width: "100%", height: "120px", padding: "10px", borderRadius: "5px", border: "1px solid #ccc"}} /></div>
+
+              <div><label style={{fontWeight: "bold"}}>3. Warta Baptisan</label>
+              <textarea value={wartaLain.baptisan} onChange={(e) => setWartaLain({...wartaLain, baptisan: e.target.value})} style={{width: "100%", height: "80px", padding: "10px", borderRadius: "5px", border: "1px solid #ccc"}} /></div>
+
+              {/* --- DYNAMIC INPUT PERNIKAHAN --- */}
+              <div style={{ border: "1px solid #bee5eb", padding: "15px", borderRadius: "5px", backgroundColor: "#e0f7fa" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                  <label style={{fontWeight: "bold", fontSize: "16px"}}>4. Warta Pernikahan</label>
+                  <button onClick={() => setWartaLain({...wartaLain, pernikahan: [...wartaLain.pernikahan, {teks: "", gambarUrl: ""}]})} style={{ padding: "5px 10px", backgroundColor: "#17a2b8", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", fontSize: "12px" }}>+ Tambah Pasangan</button>
+                </div>
+                
+                {wartaLain.pernikahan.map((item, index) => (
+                  <div key={index} style={{ marginBottom: "15px", paddingBottom: "15px", borderBottom: index !== wartaLain.pernikahan.length - 1 ? "1px dashed #b2ebf2" : "none" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px" }}>
+                      <span style={{ fontSize: "12px", fontWeight: "bold", color: "#00838f" }}>Pasangan #{index + 1}</span>
+                      {wartaLain.pernikahan.length > 1 && (
+                        <button onClick={() => {
+                          const newArr = [...wartaLain.pernikahan];
+                          newArr.splice(index, 1);
+                          setWartaLain({...wartaLain, pernikahan: newArr});
+                        }} style={{ backgroundColor: "#dc3545", color: "white", border: "none", borderRadius: "3px", padding: "2px 8px", fontSize: "11px", cursor: "pointer" }}>Hapus</button>
+                      )}
+                    </div>
+                    <input type="text" value={item.gambarUrl} onChange={(e) => {
+                      const newArr = [...wartaLain.pernikahan];
+                      newArr[index].gambarUrl = e.target.value;
+                      setWartaLain({...wartaLain, pernikahan: newArr});
+                    }} placeholder="Paste Link Gambar..." style={{width: "100%", padding: "8px", marginBottom: "8px", borderRadius: "4px", border: "1px solid #ccc"}} />
+                    <textarea value={item.teks} onChange={(e) => {
+                      const newArr = [...wartaLain.pernikahan];
+                      newArr[index].teks = e.target.value;
+                      setWartaLain({...wartaLain, pernikahan: newArr});
+                    }} placeholder="Teks Warta Pernikahan..." style={{width: "100%", height: "60px", padding: "8px", borderRadius: "4px", border: "1px solid #ccc"}} />
+                  </div>
+                ))}
+              </div>
+
+              {/* --- DYNAMIC INPUT KEMATIAN --- */}
+              <div style={{ border: "1px solid #f5c6cb", padding: "15px", borderRadius: "5px", backgroundColor: "#f8d7da" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                  <label style={{fontWeight: "bold", fontSize: "16px"}}>5. Warta Kematian</label>
+                  <button onClick={() => setWartaLain({...wartaLain, kematian: [...wartaLain.kematian, {teks: "", gambarUrl: ""}]})} style={{ padding: "5px 10px", backgroundColor: "#dc3545", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", fontSize: "12px" }}>+ Tambah Berita</button>
+                </div>
+                
+                {wartaLain.kematian.map((item, index) => (
+                  <div key={index} style={{ marginBottom: "15px", paddingBottom: "15px", borderBottom: index !== wartaLain.kematian.length - 1 ? "1px dashed #f5c6cb" : "none" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px" }}>
+                      <span style={{ fontSize: "12px", fontWeight: "bold", color: "#c82333" }}>Almarhum/ah #{index + 1}</span>
+                      {wartaLain.kematian.length > 1 && (
+                        <button onClick={() => {
+                          const newArr = [...wartaLain.kematian];
+                          newArr.splice(index, 1);
+                          setWartaLain({...wartaLain, kematian: newArr});
+                        }} style={{ backgroundColor: "#c82333", color: "white", border: "none", borderRadius: "3px", padding: "2px 8px", fontSize: "11px", cursor: "pointer" }}>Hapus</button>
+                      )}
+                    </div>
+                    <input type="text" value={item.gambarUrl} onChange={(e) => {
+                      const newArr = [...wartaLain.kematian];
+                      newArr[index].gambarUrl = e.target.value;
+                      setWartaLain({...wartaLain, kematian: newArr});
+                    }} placeholder="Paste Link Gambar..." style={{width: "100%", padding: "8px", marginBottom: "8px", borderRadius: "4px", border: "1px solid #ccc"}} />
+                    <textarea value={item.teks} onChange={(e) => {
+                      const newArr = [...wartaLain.kematian];
+                      newArr[index].teks = e.target.value;
+                      setWartaLain({...wartaLain, kematian: newArr});
+                    }} placeholder="Teks Warta Kematian..." style={{width: "100%", height: "60px", padding: "8px", borderRadius: "4px", border: "1px solid #ccc"}} />
+                  </div>
+                ))}
+              </div>
+
+              <div><label style={{fontWeight: "bold"}}>6. Informasi Pembangunan</label>
+              <textarea value={wartaLain.pembangunan} onChange={(e) => setWartaLain({...wartaLain, pembangunan: e.target.value})} style={{width: "100%", height: "80px", padding: "10px", borderRadius: "5px", border: "1px solid #ccc"}} /></div>
+
+              <div><label style={{fontWeight: "bold"}}>7. Informasi Lain-lain</label>
+              <textarea value={wartaLain.informasiLain} onChange={(e) => setWartaLain({...wartaLain, informasiLain: e.target.value})} style={{width: "100%", height: "100px", padding: "10px", borderRadius: "5px", border: "1px solid #ccc"}} /></div>
+            </div>
           ) : (
-            <div style={{ minHeight: "200px", padding: "20px", backgroundColor: "#fff", border: "1px solid #e0e0e0", borderRadius: "8px", whiteSpace: "pre-wrap", textAlign: "justify", fontFamily: "Arial", lineHeight: "1.6", fontSize: "14px" }}>
-              {teksWartaLain ? teksWartaLain : <span style={{ color: "gray", fontStyle: "italic", textAlign: "center", display: "block" }}>Tidak ada warta tambahan untuk tanggal ini. Klik tombol Edit untuk menambah warta.</span>}
+            <div style={{ padding: "20px", backgroundColor: "#fff", border: "1px solid #e0e0e0", borderRadius: "8px", fontFamily: "Arial", lineHeight: "1.6", fontSize: "14px" }}>
+              
+              {/* RENDER KATEGORI JIKA ADA ISINYA SAJA */}
+              {wartaLain.sapaan && <div style={{marginBottom:"20px"}}><h4>Sapaan</h4><p style={{whiteSpace:"pre-wrap"}}>{wartaLain.sapaan}</p></div>}
+              
+              {wartaLain.ulangTahun && <div style={{marginBottom:"20px"}}><h4>Ucapan Selamat Ulang Tahun</h4>{renderTabelExcel(wartaLain.ulangTahun)}</div>}
+              
+              {wartaLain.baptisan && <div style={{marginBottom:"20px"}}><h4>Warta Baptisan</h4><p style={{whiteSpace:"pre-wrap"}}>{wartaLain.baptisan}</p></div>}
+              
+              {/* RENDER PERNIKAHAN (ARRAY MAP) */}
+              {Array.isArray(wartaLain.pernikahan) && wartaLain.pernikahan.some(p => p.teks) && (
+                <div style={{marginBottom:"20px", border:"1px solid #bee5eb", padding:"15px", borderRadius:"8px"}}>
+                  <h4>Warta Pernikahan</h4>
+                  {wartaLain.pernikahan.map((item, idx) => item.teks ? (
+                    <div key={idx} style={{ display: "flex", gap: "15px", flexWrap: "wrap", alignItems: "flex-start", marginBottom: "15px", paddingBottom: "15px", borderBottom: idx !== wartaLain.pernikahan.length - 1 ? "1px dashed #bee5eb" : "none" }}>
+                      {item.gambarUrl && <img src={item.gambarUrl} alt="Pernikahan" style={{maxWidth: "200px", borderRadius: "8px"}} />}
+                      <p style={{whiteSpace:"pre-wrap", flex: 1, margin: 0}}>{item.teks}</p>
+                    </div>
+                  ) : null)}
+                </div>
+              )}
+
+              {/* RENDER KEMATIAN (ARRAY MAP) */}
+              {Array.isArray(wartaLain.kematian) && wartaLain.kematian.some(k => k.teks) && (
+                <div style={{marginBottom:"20px", border:"1px solid #f5c6cb", padding:"15px", borderRadius:"8px"}}>
+                  <h4>Warta Kematian</h4>
+                  {wartaLain.kematian.map((item, idx) => item.teks ? (
+                    <div key={idx} style={{ display: "flex", gap: "15px", flexWrap: "wrap", alignItems: "flex-start", marginBottom: "15px", paddingBottom: "15px", borderBottom: idx !== wartaLain.kematian.length - 1 ? "1px dashed #f5c6cb" : "none" }}>
+                      {item.gambarUrl && <img src={item.gambarUrl} alt="Kematian" style={{maxWidth: "200px", borderRadius: "8px"}} />}
+                      <p style={{whiteSpace:"pre-wrap", flex: 1, margin: 0}}>{item.teks}</p>
+                    </div>
+                  ) : null)}
+                </div>
+              )}
+
+              {wartaLain.kematian?.teks && (
+                <div style={{marginBottom:"20px", border:"1px solid #f5c6cb", padding:"15px", borderRadius:"8px"}}>
+                  <h4>Warta Kematian</h4>
+                  <div style={{ display: "flex", gap: "15px", flexWrap: "wrap", alignItems: "flex-start" }}>
+                    {wartaLain.kematian.gambarUrl && <img src={wartaLain.kematian.gambarUrl} alt="Kematian" style={{maxWidth: "200px", borderRadius: "8px"}} />}
+                    <p style={{whiteSpace:"pre-wrap", flex: 1}}>{wartaLain.kematian.teks}</p>
+                  </div>
+                </div>
+              )}
+              
+              {wartaLain.pembangunan && <div style={{marginBottom:"20px"}}><h4>Informasi Pembangunan</h4><p style={{whiteSpace:"pre-wrap"}}>{wartaLain.pembangunan}</p></div>}
+              
+              {wartaLain.informasiLain && <div style={{marginBottom:"20px"}}><h4>Informasi Lain-lain</h4><p style={{whiteSpace:"pre-wrap"}}>{wartaLain.informasiLain}</p></div>}
+
+              {/* Jika Semua Kosong */}
+              {(!wartaLain.sapaan && !wartaLain.ulangTahun && !wartaLain.baptisan && !wartaLain.pernikahan?.teks && !wartaLain.kematian?.teks && !wartaLain.pembangunan && !wartaLain.informasiLain) && (
+                <span style={{ color: "gray", fontStyle: "italic", textAlign: "center", display: "block" }}>Tidak ada warta tambahan untuk tanggal ini.</span>
+              )}
+
             </div>
           )}
         </div>
