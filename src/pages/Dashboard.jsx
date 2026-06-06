@@ -19,7 +19,8 @@ export default function Dashboard() {
     pernikahan: [{ teks: "", gambarUrl: "" }], // Sekarang berbentuk Array (Bisa banyak)
     kematian: [{ teks: "", gambarUrl: "" }],   // Sekarang berbentuk Array (Bisa banyak)
     pembangunan: "",
-    informasiLain: ""
+    informasiLain: "",
+    bacaanHarian: "" // TAMBAHAN: Menyimpan text raw dari Copy-Paste Excel
   };
   const [wartaLain, setWartaLain] = useState(stateWartaAwal);
   const [isEditingWarta, setIsEditingWarta] = useState(false);
@@ -87,6 +88,41 @@ export default function Dashboard() {
             })}
           </tbody>
         </table>
+      </div>
+    );
+  };
+
+  // FUNGSI RENDER CARD KHUSUS BACAAN HARIAN
+  const renderCardBacaanHarian = (text) => {
+    if (!text) return null;
+    const rows = text.trim().split('\n');
+
+    return (
+      <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "15px", marginTop: "20px" }}>
+        {rows.map((row, i) => {
+          const cells = row.split('\t');
+          if (cells.length < 2) return null; // Abaikan baris kosong atau tidak valid
+          
+          const hariTanggal = cells[0] || "-";
+          const bacaan = cells[1] || "-";
+          const tema = cells[2] || ""; // Kolom 3: Tema (opsional jika ada)
+
+          // Palet warna cerah bergantian untuk Card
+          const colors = ["#e3f2fd", "#e8f5e9", "#fff3e0", "#f3e5f5", "#fbe9e7", "#e0f7fa", "#fce4ec"];
+          const bg = colors[i % colors.length];
+
+          return (
+            <div key={i} style={{ backgroundColor: bg, padding: "20px", borderRadius: "12px", border: "1px solid rgba(0,0,0,0.05)", boxShadow: "0 4px 6px rgba(0,0,0,0.05)" }}>
+              <h4 style={{ margin: "0 0 12px 0", borderBottom: "2px solid rgba(0,0,0,0.08)", paddingBottom: "8px", color: "#333", fontSize: "16px" }}>
+                🗓️ {hariTanggal}
+              </h4>
+              <p style={{ margin: "0 0 8px 0", fontSize: "18px", fontWeight: "bold", color: "#000" }}>
+                📖 {bacaan}
+              </p>
+              {tema && <p style={{ margin: 0, fontSize: "14px", fontStyle: "italic", color: "#555" }}>Tema: {tema}</p>}
+            </div>
+          );
+        })}
       </div>
     );
   };
@@ -228,6 +264,48 @@ export default function Dashboard() {
     }
   };
 
+// --- FUNGSI BARU: UPLOAD INSTAN UNTUK WARTA PERNIKAHAN & KEMATIAN ---
+  const handleUploadGambarWarta = async (e, kategori, index) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Gunakan Cloud Name dan Preset Anda yang sudah tervalidasi
+    const CLOUD_NAME = "duaf1qnbb"; 
+    const UPLOAD_PRESET = "preset_gereja"; 
+
+    // Beri efek visual "Mengunggah..." pada input teks
+    const newArr = [...wartaLain[kategori]];
+    newArr[index].gambarUrl = "Mengunggah...";
+    setWartaLain({ ...wartaLain, [kategori]: newArr });
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("upload_preset", UPLOAD_PRESET);
+
+      const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`, {
+        method: "POST",
+        body: formData
+      });
+      const data = await response.json();
+
+      if (data.secure_url) {
+        // Ganti teks "Mengunggah..." dengan URL asli dari Cloudinary
+        const updatedArr = [...wartaLain[kategori]];
+        updatedArr[index].gambarUrl = data.secure_url;
+        setWartaLain({ ...wartaLain, [kategori]: updatedArr });
+      } else {
+        throw new Error("Gagal mengunggah gambar");
+      }
+    } catch (error) {
+      alert("Upload gagal: " + error.message);
+      // Kosongkan kembali jika gagal
+      const resetArr = [...wartaLain[kategori]];
+      resetArr[index].gambarUrl = "";
+      setWartaLain({ ...wartaLain, [kategori]: resetArr });
+    }
+  };
+
   const handlePilihGambar = (e) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -298,40 +376,39 @@ export default function Dashboard() {
     setIsUploading(true);
     
     // MASUKKAN CLOUD NAME & UPLOAD PRESET KAMU DI SINI
-    const CLOUD_NAME = "dn1vrtpi5"; 
-    const UPLOAD_PRESET = "tae9icgg"; 
+    const CLOUD_NAME = "duaf1qnbb"; // <-- Diisi dengan Cloud Name asli Anda
+    const UPLOAD_PRESET = "preset_gereja"; // <-- Ganti dengan nama preset Unsigned yang baru saja Anda buat/simpan di Langkah 1
     
     try {
-      const uploadedUrls = [];
-      
-      for (let i = 0; i < fileKeuangan.length; i++) {
-        const file = fileKeuangan[i];
-        
+      // PERBAIKAN 1: Buat antrean janji (promises) agar semua file diupload BERSAMAAN
+      const uploadPromises = fileKeuangan.map(async (file) => {
         if (typeof file === "string") {
-          // Jika sudah berupa URL (sudah pernah diupload), langsung masukkan
-          uploadedUrls.push(file);
-        } else {
-          // Jika file baru, upload ke Cloudinary
-          const formData = new FormData();
-          formData.append("file", file);
-          formData.append("upload_preset", UPLOAD_PRESET);
-          
-          const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
-            method: "POST",
-            body: formData
-          });
-          
-          const data = await response.json();
-          if (data.secure_url) {
-            uploadedUrls.push(data.secure_url);
-          } else {
-            throw new Error(data.error?.message || "Gagal mengunggah gambar ke server");
-          }
+          return file; // Jika sudah berupa URL, kembalikan langsung
         }
-      }
+
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("upload_preset", UPLOAD_PRESET);
+        
+        // PERBAIKAN 2: Ubah /image/upload menjadi /auto/upload agar aman menerima PDF
+        const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`, {
+          method: "POST",
+          body: formData
+        });
+        
+        const data = await response.json();
+        if (data.secure_url) {
+          return data.secure_url;
+        } else {
+          throw new Error(data.error?.message || "Gagal mengunggah file ke server");
+        }
+      });
+
+      // Eksekusi semua antrean upload secara paralel
+      const hasilUpload = await Promise.all(uploadPromises);
 
       // FITUR BARU: Menghapus URL yang ganda/dobel sebelum disimpan
-      const urlBersihTanpaDobel = [...new Set(uploadedUrls)];
+      const urlBersihTanpaDobel = [...new Set(hasilUpload)];
 
       // Simpan URL yang sudah bersih dari duplikat ke Firestore
       await setDoc(doc(db, "warta_keuangan_arsip", tanggalTerpilih), {
@@ -475,6 +552,16 @@ export default function Dashboard() {
         .screen-none { display: none; }
         .screen-block { display: block; }
         .print-only { display: none !important; }
+
+        /* TAMPILAN KHUSUS PDF (RESPONSIVE) */
+        .pdf-desktop { display: block; width: 100%; height: 800px; }
+        .pdf-mobile { display: none; }
+        
+        /* Deteksi Layar HP (Maksimal lebar 768px) */
+        @media screen and (max-width: 768px) {
+          .pdf-desktop { display: none !important; }
+          .pdf-mobile { display: block !important; width: 100%; }
+        }
         
         .table-responsive {
           width: 100%;
@@ -627,7 +714,8 @@ export default function Dashboard() {
       <div id="dashboard-tabs" style={{ display: "flex", borderBottom: "4px solid #0A2540", marginBottom: "0", flexWrap: "wrap", gap: "5px" }}>
         <button style={getTabStyle("minggu")} onClick={() => setTabAktif("minggu")}>📋 Informasi Pelayanan</button>
         <button style={getTabStyle("keuangan")} onClick={() => setTabAktif("keuangan")}>💰 Warta Keuangan</button>
-        <button style={getTabStyle("lainnya")} onClick={() => setTabAktif("lainnya")}>📌 Warta Lain-lain</button>
+        <button style={getTabStyle("lainnya")} onClick={() => setTabAktif("lainnya")}>📰 Warta Lain-lain</button>
+        <button style={getTabStyle("bacaan")} onClick={() => setTabAktif("bacaan")}>📖 Bacaan Harian</button>
         
         <button onClick={() => window.print()} style={{ padding: "12px 25px", backgroundColor: "#28a745", color: "white", border: "none", borderRadius: "8px 8px 0 0", marginLeft: "auto", fontWeight: "bold", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}>
           🖨️ Cetak Keseluruhan
@@ -950,7 +1038,8 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              <div className="grid-keuangan" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "20px" }}>
+              {/* PERBAIKAN: Jika file cuma 1, penuhi layar (1fr). Jika banyak, susun bersampingan. */}
+              <div className="grid-keuangan" style={{ display: "grid", gridTemplateColumns: fileKeuangan.length === 1 ? "1fr" : "repeat(auto-fit, minmax(350px, 1fr))", gap: "20px" }}>
                 {fileKeuangan.map((file, index) => (
                   <div 
                     key={index}
@@ -960,8 +1049,7 @@ export default function Dashboard() {
                     onDragEnter={(e) => dragEnter(e, index)}
                     onDragEnd={drop}
                     onDragOver={(e) => e.preventDefault()}
-                    // HAPUS position: relative, TAMBAH flex column agar punya baris kepala
-                    style={{ cursor: "grab", border: "1px solid #ddd", borderRadius: "8px", overflow: "hidden", backgroundColor: "#fff", width: "100%", maxWidth: "800px", display: "flex", flexDirection: "column", boxShadow: "0 2px 8px rgba(0,0,0,0.1)" }}
+                    style={{ cursor: "grab", border: "1px solid #ddd", borderRadius: "8px", overflow: "hidden", backgroundColor: "#fff", width: "100%", maxWidth: "100%", display: "flex", flexDirection: "column", boxShadow: "0 2px 8px rgba(0,0,0,0.1)" }}
                   >
                     
                     {/* BARIS KEPALA (HEADER): Memisahkan Label/Tombol agar tidak menumpuk di gambar */}
@@ -982,16 +1070,34 @@ export default function Dashboard() {
                       {/* LOGIKA PENGECEKAN: Apakah ini PDF? */}
                       {(typeof file === "string" ? file.toLowerCase().endsWith(".pdf") : file && file.type === "application/pdf") ? (
                         
-                        /* JIKA PDF: Tampilkan Ikon & Tombol Buka */
-                        <div style={{ textAlign: "center", padding: "20px" }}>
-                          <div style={{ fontSize: "50px", marginBottom: "10px" }}>📄</div>
-                          <h4 style={{ margin: "0 0 15px 0", color: "#333" }}>Laporan Dokumen PDF</h4>
+                        /* JIKA PDF: Tampilkan Langsung Dokumennya */
+                        <div style={{ width: "100%", height: "100%", minHeight: "200px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "0" }}>
                           {typeof file === "string" ? (
-                            <a href={file} target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", backgroundColor: "#007BFF", color: "white", padding: "8px 20px", borderRadius: "5px", textDecoration: "none", fontWeight: "bold" }}>
-                              📥 Buka / Download PDF
-                            </a>
+                            <>
+                              {/* 1.A TAMPILAN LAPTOP (Iframe PDF Asli) */}
+                              <div className="no-print pdf-desktop">
+                                <iframe src={`${file}#view=FitH`} width="100%" height="100%" style={{ border: "none" }} title="Laporan PDF" />
+                              </div>
+
+                              {/* 1.B TAMPILAN HP (Trik Cloudinary: Tampilkan PDF sebagai Gambar JPG agar HP tidak menolak) */}
+                              <div className="no-print pdf-mobile" style={{ backgroundColor: "#f4f4f4", paddingBottom: "10px" }}>
+                                <img src={file.replace(/\.pdf$/i, ".jpg")} style={{ width: "100%", height: "auto", display: "block" }} alt="Laporan Keuangan Mobile" />
+                                {/* Tombol opsional jika jemaat ingin mendownload file aslinya */}
+                                <div style={{ textAlign: "center", marginTop: "10px" }}>
+                                  <a href={file} target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", backgroundColor: "#0A2540", color: "white", padding: "8px 20px", borderRadius: "5px", textDecoration: "none", fontSize: "14px", fontWeight: "bold" }}>
+                                    📥 Download PDF Asli
+                                  </a>
+                                </div>
+                              </div>
+                              
+                              {/* 2. TAMPILAN CETAK/PRINT (Trik Cloudinary: Ubah PDF jadi JPG otomatis) */}
+                              <img src={file.replace(/\.pdf$/i, ".jpg")} className="print-only item-gambar-cetak" style={{ width: "100%", height: "auto" }} alt="Cetak Laporan PDF" />
+                            </>
                           ) : (
-                            <span style={{ color: "#28a745", fontWeight: "bold" }}>File siap diunggah ke server...</span>
+                            <div style={{ textAlign: "center", padding: "40px" }}>
+                              <div style={{ fontSize: "50px", marginBottom: "10px" }}>📄</div>
+                              <span style={{ color: "#28a745", fontWeight: "bold", fontSize: "15px" }}>PDF siap diunggah...<br/>(Isi laporan akan muncul di sini setelah Anda klik Simpan ke Server)</span>
+                            </div>
                           )}
                         </div>
 
@@ -1065,11 +1171,17 @@ export default function Dashboard() {
                         }} style={{ backgroundColor: "#dc3545", color: "white", border: "none", borderRadius: "3px", padding: "2px 8px", fontSize: "11px", cursor: "pointer" }}>Hapus</button>
                       )}
                     </div>
-                    <input type="text" value={item.gambarUrl} onChange={(e) => {
-                      const newArr = [...wartaLain.pernikahan];
-                      newArr[index].gambarUrl = e.target.value;
-                      setWartaLain({...wartaLain, pernikahan: newArr});
-                    }} placeholder="Paste Link Gambar..." style={{width: "100%", padding: "8px", marginBottom: "8px", borderRadius: "4px", border: "1px solid #ccc"}} />
+                    <div style={{ display: "flex", gap: "10px", marginBottom: "8px", alignItems: "center" }}>
+                      <label style={{ cursor: "pointer", backgroundColor: "#17a2b8", color: "white", padding: "8px 15px", borderRadius: "4px", fontWeight: "bold", fontSize: "12px", whiteSpace: "nowrap", margin: 0 }}>
+                        📷 Upload Gambar
+                        <input type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => handleUploadGambarWarta(e, "pernikahan", index)} />
+                      </label>
+                      <input type="text" value={item.gambarUrl} onChange={(e) => {
+                        const newArr = [...wartaLain.pernikahan];
+                        newArr[index].gambarUrl = e.target.value;
+                        setWartaLain({...wartaLain, pernikahan: newArr});
+                      }} placeholder="Atau paste Link Gambar di sini..." style={{ flex: "1", padding: "8px", borderRadius: "4px", border: "1px solid #ccc", backgroundColor: item.gambarUrl === "Mengunggah..." ? "#e9ecef" : "#fff", color: item.gambarUrl === "Mengunggah..." ? "#28a745" : "#000", fontWeight: item.gambarUrl === "Mengunggah..." ? "bold" : "normal" }} disabled={item.gambarUrl === "Mengunggah..."} />
+                    </div>
                     <textarea value={item.teks} onChange={(e) => {
                       const newArr = [...wartaLain.pernikahan];
                       newArr[index].teks = e.target.value;
@@ -1098,11 +1210,17 @@ export default function Dashboard() {
                         }} style={{ backgroundColor: "#c82333", color: "white", border: "none", borderRadius: "3px", padding: "2px 8px", fontSize: "11px", cursor: "pointer" }}>Hapus</button>
                       )}
                     </div>
-                    <input type="text" value={item.gambarUrl} onChange={(e) => {
-                      const newArr = [...wartaLain.kematian];
-                      newArr[index].gambarUrl = e.target.value;
-                      setWartaLain({...wartaLain, kematian: newArr});
-                    }} placeholder="Paste Link Gambar..." style={{width: "100%", padding: "8px", marginBottom: "8px", borderRadius: "4px", border: "1px solid #ccc"}} />
+                    <div style={{ display: "flex", gap: "10px", marginBottom: "8px", alignItems: "center" }}>
+                      <label style={{ cursor: "pointer", backgroundColor: "#c82333", color: "white", padding: "8px 15px", borderRadius: "4px", fontWeight: "bold", fontSize: "12px", whiteSpace: "nowrap", margin: 0 }}>
+                        📷 Upload Gambar
+                        <input type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => handleUploadGambarWarta(e, "kematian", index)} />
+                      </label>
+                      <input type="text" value={item.gambarUrl} onChange={(e) => {
+                        const newArr = [...wartaLain.kematian];
+                        newArr[index].gambarUrl = e.target.value;
+                        setWartaLain({...wartaLain, kematian: newArr});
+                      }} placeholder="Atau paste Link Gambar di sini..." style={{ flex: "1", padding: "8px", borderRadius: "4px", border: "1px solid #ccc", backgroundColor: item.gambarUrl === "Mengunggah..." ? "#e9ecef" : "#fff", color: item.gambarUrl === "Mengunggah..." ? "#28a745" : "#000", fontWeight: item.gambarUrl === "Mengunggah..." ? "bold" : "normal" }} disabled={item.gambarUrl === "Mengunggah..."} />
+                    </div>
                     <textarea value={item.teks} onChange={(e) => {
                       const newArr = [...wartaLain.kematian];
                       newArr[index].teks = e.target.value;
@@ -1173,6 +1291,50 @@ export default function Dashboard() {
                 <span style={{ color: "gray", fontStyle: "italic", textAlign: "center", display: "block" }}>Tidak ada warta tambahan untuk tanggal ini.</span>
               )}
 
+            </div>
+          )}
+        </div>
+
+        {/* TAB 4: BACAAN HARIAN (DENGAN CLASS no-print AGAR TIDAK TERCETAK) */}
+        <div className="no-print" style={{ display: tabAktif === "bacaan" ? "block" : "none" }}>
+          <h2 style={{ textAlign: "center", borderBottom: "2px solid #eee", paddingBottom: "10px", color: "black", marginTop: "20px" }}>Bacaan Harian Jemaat</h2>
+          
+          {/* TOMBOL EDIT HANYA MUNCUL JIKA USER ADALAH SEKRETARIS */}
+          {apakahSekretaris && (
+            <div style={{ textAlign: "right", marginBottom: "15px", backgroundColor: "#e2e3e5", padding: "10px", borderRadius: "5px", border: "1px solid #d6d8db" }}>
+              <span style={{ marginRight: "15px", fontWeight: "bold", color: "#383d41" }}>⚙️ Akses Admin Bacaan</span>
+              {isEditingWarta ? (
+                <button onClick={simpanWartaLain} style={{ padding: "8px 20px", backgroundColor: "#28a745", color: "white", border: "none", borderRadius: "5px", cursor: "pointer", fontWeight: "bold" }}>💾 Simpan Perubahan</button>
+              ) : (
+                <button onClick={() => setIsEditingWarta(true)} style={{ padding: "8px 20px", backgroundColor: "#007BFF", color: "white", border: "none", borderRadius: "5px", cursor: "pointer", fontWeight: "bold" }}>✏️ Edit Bacaan Harian</button>
+              )}
+            </div>
+          )}
+
+          {isEditingWarta ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: "15px", backgroundColor: "#f8f9fa", padding: "20px", borderRadius: "8px", border: "1px solid #ddd" }}>
+              <div>
+                <label style={{fontWeight: "bold", display: "block", marginBottom: "5px"}}>📋 Input Bacaan Harian (Copy-Paste dari Excel)</label>
+                <p style={{fontSize: "13px", color: "#666", marginTop: 0, marginBottom: "10px"}}>
+                  Pastikan berurutan 3 kolom di excel Anda: <strong>Hari & Tanggal</strong> (Tab) <strong>Bacaan</strong> (Tab) <strong>Tema</strong>
+                </p>
+                <textarea 
+                  value={wartaLain.bacaanHarian || ""} 
+                  onChange={(e) => setWartaLain({...wartaLain, bacaanHarian: e.target.value})} 
+                  placeholder="Paste langsung dari blok cell excel di sini..." 
+                  style={{width: "100%", height: "200px", padding: "12px", borderRadius: "8px", border: "1px solid #ccc", fontFamily: "monospace"}} 
+                />
+              </div>
+            </div>
+          ) : (
+            <div style={{ padding: "10px 0" }}>
+              {wartaLain.bacaanHarian ? (
+                renderCardBacaanHarian(wartaLain.bacaanHarian)
+              ) : (
+                <div style={{ textAlign: "center", padding: "40px", backgroundColor: "#fff", border: "1px solid #e0e0e0", borderRadius: "8px" }}>
+                  <span style={{ color: "gray", fontStyle: "italic", fontSize: "15px" }}>Belum ada jadwal bacaan harian yang diunggah untuk sepekan ini.</span>
+                </div>
+              )}
             </div>
           )}
         </div>
