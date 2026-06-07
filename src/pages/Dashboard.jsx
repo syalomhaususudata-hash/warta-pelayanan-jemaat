@@ -4,6 +4,59 @@ import { db } from "../firebase"; // <-- HANYA FIRESTORE, TANPA STORAGE
 import KehadiranJemaat from "./KehadiranJemaat";
 import { getAuth } from "firebase/auth"; // <-- Tambahkan ini di atas
 
+import { buatPPTWarta } from "./exportPPT"; // <--- IMPORT FILE PPT BARU
+
+// Kode Baru: Import react-pdf
+import { Document, Page, pdfjs } from 'react-pdf';
+import "react-pdf/dist/Page/AnnotationLayer.css";
+import "react-pdf/dist/Page/TextLayer.css";
+
+// Solusi Lokal Vite (Anti-CORS): Memanggil worker langsung dari folder internal
+pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.min.mjs',
+  import.meta.url
+).toString();
+
+const PdfViewerCetak = ({ url }) => {
+  const [numPages, setNumPages] = useState(null);
+
+  return (
+    <div className="pdf-wrapper-luar" style={{ width: "100%", overflowX: "auto", WebkitOverflowScrolling: "touch", paddingBottom: "10px" }}>
+      
+      {/* KELAS pdf-container-dalam AKAN DIATUR OLEH CSS */}
+      <div className="pdf-container-dalam" style={{ display: "flex", flexDirection: "column", alignItems: "center", margin: "0 auto" }}>
+        <Document
+          file={url}
+          onLoadSuccess={({ numPages }) => setNumPages(numPages)}
+          loading={<div style={{ padding: "20px", fontWeight: "bold" }}>⏳ Sedang memuat halaman PDF...</div>}
+        >
+          {Array.from(new Array(numPages || 1), (el, index) => (
+            <div 
+              key={`page_${index + 1}`} 
+              className="halaman-pdf-print" 
+              style={{ width: "100%", marginBottom: "15px", display: "flex", justifyContent: "center" }}
+            >
+              <Page 
+                pageNumber={index + 1} 
+                width={750} 
+                renderAnnotationLayer={false}
+                renderTextLayer={false}
+              />
+            </div>
+          ))}
+        </Document>
+        
+        <div className="no-print" style={{ textAlign: "center", marginTop: "15px", paddingBottom: "15px" }}>
+          <a href={url} target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", backgroundColor: "#0A2540", color: "white", padding: "8px 20px", borderRadius: "5px", textDecoration: "none", fontSize: "14px", fontWeight: "bold" }}>
+            📥 Download PDF Asli
+          </a>
+        </div>
+      </div>
+      
+    </div>
+  );
+};
+
 export default function Dashboard() {
   const [tabAktif, setTabAktif] = useState("minggu");
   const [semuaJadwalMinggu, setSemuaJadwalMinggu] = useState([]);
@@ -59,36 +112,73 @@ export default function Dashboard() {
       return "-"; // Jika sistem tidak menemukan pola tahun
     };
 
-    return (
-      <div className="table-responsive" style={{ overflowX: "auto", width: "100%" }}>
-        <table style={{ width: '100%', minWidth: '400px', borderCollapse: 'collapse', marginTop: '10px', fontSize: '14px', backgroundColor: '#fff' }}>
-          <thead>
-            <tr style={{ backgroundColor: "#0A2540", color: "#fff" }}>
-              <th style={{ border: '1px solid #ddd', padding: '12px', textAlign: 'left', width: '45%' }}>Nama Jemaat</th>
-              <th style={{ border: '1px solid #ddd', padding: '12px', textAlign: 'left', width: '35%' }}>Tanggal Lahir</th>
-              <th style={{ border: '1px solid #ddd', padding: '12px', textAlign: 'center', width: '20%' }}>HUT Ke-</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, i) => {
-              const cells = row.split('\t'); // Memisahkan kolom excel berdasarkan 'Tab'
-              const nama = cells[0] || "-";
-              const tglLahir = cells[1] || "-";
-              const usiaOtomatis = hitungUsia(tglLahir);
+return (
+      <>
+        {/* --- TAMPILAN DESKTOP & CETAK (TABEL) --- */}
+        <div className="table-responsive tabel-desktop">
+          <table style={{ width: '100%', minWidth: '400px', borderCollapse: 'collapse', marginTop: '10px', fontSize: '14px', backgroundColor: '#fff' }}>
+            <thead>
+              <tr style={{ backgroundColor: "#0A2540", color: "#fff" }}>
+                <th style={{ border: '1px solid #ddd', padding: '12px', textAlign: 'left', width: '45%' }}>Nama Jemaat</th>
+                <th style={{ border: '1px solid #ddd', padding: '12px', textAlign: 'left', width: '35%' }}>Tanggal Lahir</th>
+                <th style={{ border: '1px solid #ddd', padding: '12px', textAlign: 'center', width: '20%' }}>HUT Ke-</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, i) => {
+                const cells = row.split('\t');
+                const nama = cells[0] || "-";
+                const tglLahir = cells[1] || "-";
+                const usiaOtomatis = hitungUsia(tglLahir);
+                return (
+                  <tr key={i} style={{ borderBottom: '1px solid #ddd' }}>
+                    <td style={{ border: '1px solid #ddd', padding: '10px' }}>{nama}</td>
+                    <td style={{ border: '1px solid #ddd', padding: '10px' }}>{tglLahir}</td>
+                    <td style={{ border: '1px solid #ddd', padding: '10px', textAlign: 'center', fontWeight: 'bold', color: '#dc3545', backgroundColor: '#fdf1f1' }}>
+                      {usiaOtomatis}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
 
-              return (
-                <tr key={i} style={{ borderBottom: '1px solid #ddd' }}>
-                  <td style={{ border: '1px solid #ddd', padding: '10px' }}>{nama}</td>
-                  <td style={{ border: '1px solid #ddd', padding: '10px' }}>{tglLahir}</td>
-                  <td style={{ border: '1px solid #ddd', padding: '10px', textAlign: 'center', fontWeight: 'bold', color: '#dc3545', backgroundColor: '#fdf1f1' }}>
-                    {usiaOtomatis}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+        {/* --- TAMPILAN MOBILE (CARD KOMPAK) --- */}
+        <div className="card-mobile no-print" style={{ display: "grid", gridTemplateColumns: "1fr", gap: "12px", marginTop: "10px" }}>
+          {rows.map((row, i) => {
+            const cells = row.split('\t');
+            const nama = cells[0] || "-";
+            const tglLahir = cells[1] || "-";
+            const usiaOtomatis = hitungUsia(tglLahir);
+            
+            // Ambil hanya angka dari string "12 Tahun"
+            const angkaUsia = usiaOtomatis.replace(/[^0-9]/g, '');
+
+            return (
+              <div key={i} style={{ display: "flex", alignItems: "center", backgroundColor: "#fff", padding: "15px", borderRadius: "12px", border: "1px solid #eee", boxShadow: "0 2px 6px rgba(0,0,0,0.05)" }}>
+                {/* Bagian Kiri: Usia Besar */}
+                <div style={{ flex: "0 0 70px", textAlign: "center", borderRight: "2px dashed #ccc", paddingRight: "15px", marginRight: "15px" }}>
+                  <span style={{ display: "block", fontSize: "24px", fontWeight: "900", color: "#dc3545", lineHeight: "1" }}>
+                    {angkaUsia || "-"}
+                  </span>
+                  <span style={{ display: "block", fontSize: "11px", color: "gray", marginTop: "4px", fontWeight: "bold", textTransform: "uppercase" }}>
+                    Tahun
+                  </span>
+                </div>
+                
+                {/* Bagian Kanan: Nama & Tanggal */}
+                <div style={{ flex: "1" }}>
+                  <h4 style={{ margin: "0 0 4px 0", fontSize: "15px", color: "#0A2540", fontWeight: "bold" }}>{nama}</h4>
+                  <p style={{ margin: 0, fontSize: "13px", color: "#666" }}>
+                    🎂 {tglLahir}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </>
     );
   };
 
@@ -269,9 +359,14 @@ export default function Dashboard() {
     const file = e.target.files[0];
     if (!file) return;
 
-    // Gunakan Cloud Name dan Preset Anda yang sudah tervalidasi
-    const CLOUD_NAME = "duaf1qnbb"; 
-    const UPLOAD_PRESET = "preset_gereja"; 
+    // Mengambil konfigurasi dari .env Vite berdasarkan tenant yang sedang berjalan
+    const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+    const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET; 
+
+    if (!CLOUD_NAME || !UPLOAD_PRESET) {
+        alert("Konfigurasi Cloudinary belum diatur di file .env");
+        return;
+    } 
 
     // Beri efek visual "Mengunggah..." pada input teks
     const newArr = [...wartaLain[kategori]];
@@ -514,6 +609,24 @@ export default function Dashboard() {
     }
   }
 
+  // --- FUNGSI BARU: EXPORT DATA KE POWERPOINT (PPTX) ---
+   const handleDownloadPPT = () => {
+     if (!tanggalTerpilih) return alert("Pilih tanggal terlebih dahulu!");
+
+     // Lempar semua datanya ke fungsi helper yang ada di file exportPPT.js
+     buatPPTWarta({
+       tanggalTerpilih,
+       profilGereja,
+       mingguIni,
+       mingguDepan,
+       jadwalRayonSepekan,
+       jadwalKategorialSepekan,
+       fileKeuangan,
+       wartaLain
+     });
+   };
+   // --- AKHIR FUNGSI PPT ---
+  
   return (
     <div style={{ maxWidth: "1000px", margin: "0 auto", fontFamily: "Arial", padding: "20px" }}>
       <style dangerouslySetInnerHTML={{__html: `
@@ -563,21 +676,20 @@ export default function Dashboard() {
           .pdf-mobile { display: block !important; width: 100%; }
         }
         
+        /* --- WRAPPER TABEL BISA SCROLL KANAN-KIRI (HP) --- */
         .table-responsive {
           width: 100%;
-          overflow-x: auto;
-          -webkit-overflow-scrolling: touch;
+          overflow-x: auto !important;
+          -webkit-overflow-scrolling: touch; /* Smooth scroll di iOS */
           margin-bottom: 40px;
+          display: block; /* Memastikan sifat overflow bekerja utuh */
         }
 
-        /* --- TAMPILAN MOBILE (Card View Khusus Tabel) --- */
-        @media screen and (max-width: 768px) {
-          .table-responsive table, .table-responsive thead, .table-responsive tbody, .table-responsive th, .table-responsive td, .table-responsive tr { display: block; }
-          .table-responsive thead tr { position: absolute; top: -9999px; left: -9999px; }
-          .table-responsive tr { border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 15px; background-color: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.05); padding: 10px; }
-          .table-responsive td { border: none !important; border-bottom: 1px solid #eee !important; position: relative; padding: 10px 10px 10px 45% !important; text-align: right; min-height: 40px; }
-          .table-responsive td:last-child { border-bottom: none !important; }
-          .table-responsive td:before { position: absolute; top: 10px; left: 10px; width: 40%; padding-right: 10px; white-space: nowrap; content: attr(data-label); text-align: left; font-weight: bold; color: #64748b; }
+        /* Memaksa tabel tetap lebar di dalam wrapper agar bisa di-scroll, bukan malah menyusut */
+        .table-responsive table {
+          min-width: 600px !important; /* Angka ini memaksa tabel melebar melebihi layar HP */
+          width: 100%;
+          border-collapse: collapse;
         }
 
         /* --- ATURAN PENCETAKAN (PRINT CSS) --- */
@@ -649,21 +761,48 @@ export default function Dashboard() {
             border: none !important;
           }
           
-          /* 2. MERAPIKAN TABEL & TEKS PEMANDU LAGU */
-          table { 
+          /* 2. MERAPIKAN TABEL & MEMAKSA SUPER RAPAT (HEMAT KERTAS) */
+          table, .tabel-desktop table, .table-responsive table { 
             width: 100% !important;
             max-width: 100% !important;
-            border-collapse: collapse; 
+            border-collapse: collapse !important; 
             table-layout: auto !important; 
+            margin-bottom: 5px !important; /* Jarak bawah tabel dikurangi */
           } 
           
-          th, td { 
+          /* Targetkan semua sel tabel secara brutal */
+          table th, table td, .tabel-desktop th, .tabel-desktop td, tbody td, thead th { 
             border: 1px solid #000 !important;
-            padding: 6px !important; 
+            padding: 2px 4px !important; /* SUPER RAPAT: Atas-bawah 2px, Kiri-Kanan 4px */
             color: black !important; 
             white-space: normal !important; 
             word-wrap: break-word !important;
+            font-size: 11px !important; /* Perkecil huruf tabel */
+            line-height: 1.1 !important; /* Rapatkan spasi antar baris kalimat */
+            height: auto !important;
+          } 
+
+          /* Perkecil judul di atas tabel */
+          h2, h3, h4 {
+            margin-top: 5px !important;
+            margin-bottom: 5px !important;
+            padding-bottom: 2px !important;
+          }
+
+          /* Aturan Break Page untuk PDF */
+          .halaman-pdf-print {
+            page-break-after: always !important;
+            page-break-inside: avoid !important;
+          }
+          .halaman-pdf-print canvas {
+            max-width: 100% !important;
+            height: auto !important;
+          }
+
+          /* Hemat ruang pada kop surat */
+          .kop-surat-print div {
             font-size: 12px !important;
+            line-height: 1.1 !important;
           } 
           
           /* ATURAN GAMBAR KEUANGAN */
@@ -684,42 +823,85 @@ export default function Dashboard() {
             border: none !important; 
           }
         }
+          /* --- ATURAN SCROLL PDF HP & ANTI-POTONG SAAT CETAK --- */
+        @media screen and (max-width: 768px) {
+          .pdf-container-dalam { min-width: 800px !important; }
+        }
+
+        @media print {
+          .pdf-wrapper-luar { overflow: visible !important; }
+          .pdf-container-dalam { min-width: 0 !important; width: 100% !important; }
+          .halaman-pdf-print canvas { max-width: 100% !important; width: 100% !important; height: auto !important; }
+        }
       `}} />
 
       <div className="no-print" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", backgroundColor: "#f8f9fa", padding: "20px", borderRadius: "10px", border: "1px solid #e9ecef", flexWrap: "wrap", gap: "15px" }}>
         <div>
           <h3 style={{ margin: "0 0 5px 0", color: "#0A2540" }}>Sistem Warta Jemaat</h3>
-          <p style={{ margin: 0, fontSize: "14px", color: "gray" }}>Pilih tanggal untuk melihat jadwal pelayanan dan arsip.</p>
+          <p style={{ margin: 0, fontSize: "14px", color: "gray" }}>Pilih tahun dan tanggal untuk melihat jadwal pelayanan dan arsip.</p>
         </div>
-        <div style={{ flex: "1 1 auto", minWidth: "250px" }}>
-          <label style={{ fontWeight: "bold", marginRight: "10px", color: "#444" }}>Pilih Tanggal Acuan:</label>
+        
+        <div style={{ flex: "1 1 auto", minWidth: "250px", display: "flex", flexWrap: "wrap", gap: "10px", alignItems: "center" }}>
+          <label style={{ fontWeight: "bold", color: "#444" }}>Pilih Tanggal Acuan:</label>
           {semuaJadwalMinggu.length > 0 ? (
-            <select 
-              value={tanggalTerpilih} 
-              onChange={(e) => setTanggalTerpilih(e.target.value)}
-              style={{ padding: "10px", borderRadius: "6px", border: "1px solid #ccc", width: "100%", maxWidth: "300px", fontWeight: "bold", cursor: "pointer", backgroundColor: "white", marginTop: "5px" }}
-            >
-              {semuaJadwalMinggu.map(j => (
-                <option key={j.id} value={j.tanggal}>
-                  {formatTanggalDropdown(j.tanggal)}
-                </option>
-              ))}
-            </select>
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", flex: 1 }}>
+              {/* 1. FILTER TAHUN DINAMIS */}
+              <select 
+                value={tanggalTerpilih ? new Date(tanggalTerpilih).getFullYear() : new Date().getFullYear()} 
+                onChange={(e) => {
+                   const tahunPilihan = e.target.value;
+                   // Cari jadwal/tanggal pertama yang tersedia di tahun yang dipilih
+                   const opsiTahun = semuaJadwalMinggu.find(j => new Date(j.tanggal).getFullYear().toString() === tahunPilihan);
+                   if (opsiTahun) setTanggalTerpilih(opsiTahun.tanggal);
+                }}
+                style={{ padding: "10px", borderRadius: "6px", border: "1px solid #00acc1", fontWeight: "bold", cursor: "pointer", backgroundColor: "#e0f7fa", color: "#006064" }}
+              >
+                {[...new Set(semuaJadwalMinggu.map(j => new Date(j.tanggal).getFullYear()))].map(thn => (
+                  <option key={thn} value={thn}>Tahun {thn}</option>
+                ))}
+              </select>
+
+              {/* 2. FILTER TANGGAL (MENYESUAIKAN TAHUN) */}
+              <select 
+                value={tanggalTerpilih} 
+                onChange={(e) => setTanggalTerpilih(e.target.value)}
+                style={{ padding: "10px", borderRadius: "6px", border: "1px solid #ccc", flex: 1, minWidth: "200px", maxWidth: "300px", fontWeight: "bold", cursor: "pointer", backgroundColor: "white" }}
+              >
+                {semuaJadwalMinggu
+                  .filter(j => new Date(j.tanggal).getFullYear() === (tanggalTerpilih ? new Date(tanggalTerpilih).getFullYear() : new Date().getFullYear()))
+                  .map(j => (
+                    <option key={j.id} value={j.tanggal}>
+                      {formatTanggalDropdown(j.tanggal)}
+                    </option>
+                  ))}
+              </select>
+            </div>
           ) : (
-            <span style={{ color: "red", fontSize: "14px" }}>Belum ada data jadwal.</span>
+            <span style={{ color: "red", fontSize: "14px", fontWeight: "bold" }}>Belum ada data jadwal.</span>
           )}
         </div>
       </div>
       
       <div id="dashboard-tabs" style={{ display: "flex", borderBottom: "4px solid #0A2540", marginBottom: "0", flexWrap: "wrap", gap: "5px" }}>
-        <button style={getTabStyle("minggu")} onClick={() => setTabAktif("minggu")}>📋 Informasi Pelayanan</button>
+        <button style={getTabStyle("minggu")} onClick={() => setTabAktif("minggu")}>⛪ Informasi Pelayanan</button>
         <button style={getTabStyle("keuangan")} onClick={() => setTabAktif("keuangan")}>💰 Warta Keuangan</button>
-        <button style={getTabStyle("lainnya")} onClick={() => setTabAktif("lainnya")}>📰 Warta Lain-lain</button>
+        <button style={getTabStyle("lainnya")} onClick={() => setTabAktif("lainnya")}>📢 Warta Lain-lain</button>
         <button style={getTabStyle("bacaan")} onClick={() => setTabAktif("bacaan")}>📖 Bacaan Harian</button>
         
-        <button onClick={() => window.print()} style={{ padding: "12px 25px", backgroundColor: "#28a745", color: "white", border: "none", borderRadius: "8px 8px 0 0", marginLeft: "auto", fontWeight: "bold", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}>
-          🖨️ Cetak Keseluruhan
-        </button>
+        {/* BUNGKUS KEDUA TOMBOL AGAR BERSEBELAHAN DI KANAN */}
+        <div style={{ marginLeft: "auto", display: "flex", gap: "10px", alignItems: "flex-end" }}>
+          
+          {/* Tombol Export PPT Baru (HANYA MUNCUL UNTUK SEKRETARIS) */}
+          {apakahSekretaris && (
+            <button onClick={handleDownloadPPT} style={{ padding: "12px 20px", backgroundColor: "#f25c05", color: "white", border: "none", borderRadius: "8px 8px 0 0", fontWeight: "bold", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}>
+              📊 Download PPT
+            </button>
+          )}
+          
+          <button onClick={() => window.print()} style={{ padding: "12px 25px", backgroundColor: "#28a745", color: "white", border: "none", borderRadius: "8px 8px 0 0", fontWeight: "bold", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}>
+            🖨️ Cetak Keseluruhan
+          </button>
+        </div>
       </div>
 
       <div style={{ backgroundColor: "white", padding: "30px", borderRadius: "0 0 10px 10px", boxShadow: "0 5px 15px rgba(0,0,0,0.08)", border: "1px solid #ddd", borderTop: "none" }}>
@@ -727,25 +909,33 @@ export default function Dashboard() {
         {/* TAB 1: INFORMASI PELAYANAN */}
         <div className={`print-section ${tabAktif === "minggu" ? "screen-block" : "screen-none"}`}>
           
-          {/* ======== MULAI KOP SURAT (PINDAH KE DALAM TAB 1) ======== */}
-          <div style={{ display: "flex", width: "100%", borderBottom: "3px solid black", marginBottom: "30px", fontFamily: "'Times New Roman', Times, serif", color: "black" }}>
-            <div style={{ flex: "1", borderRight: "1px solid black", padding: "10px 5px", textAlign: "center", lineHeight: "1.4" }}>
-              <div style={{ fontSize: "16px", fontWeight: "bold" }}>GEREJA MASEHI INJILI DI TIMOR</div>
-              <div style={{ fontSize: "14px" }}>(GBM, GPI dan Anggota PGI)</div>
-              <div style={{ fontSize: "16px", fontWeight: "bold" }}>KLASIS MOLLO BARAT</div>
-              <div style={{ fontSize: "16px", fontWeight: "bold", textTransform: "uppercase" }}>MAJELIS JEMAAT {profilGereja.namaJemaat}</div>
-              <div style={{ fontSize: "16px", fontWeight: "bold", textTransform: "uppercase" }}>MATA JEMAAT {profilGereja.namaMataJemaat}</div>
-            </div>
-            
-            <div style={{ flex: "1", padding: "10px 5px", textAlign: "center", display: "flex", flexDirection: "column", justifyContent: "center", lineHeight: "1.4" }}>
-              <div style={{ fontSize: "16px", fontWeight: "bold" }}>WARTA MINGGU</div>
-              <div style={{ fontSize: "16px", margin: "10px 0" }}>{tanggalTerpilih ? formatTgl(tanggalTerpilih) : "-"}</div>
-              <div style={{ fontSize: "16px", fontWeight: "bold" }}>
-                {mingguIni ? (mingguIni.masa_raya || mingguIni.tema || "KEBAKTIAN MINGGU") : "-"}
-              </div>
-            </div>
-          </div>
-          {/* ======== SELESAI KOP SURAT ======== */}
+          {/* ======== MULAI KOP SURAT ======== */}
+<div style={{ display: "flex", width: "100%", borderBottom: "3px solid black", marginBottom: "30px", fontFamily: "'Times New Roman', Times, serif", color: "black", alignItems: "center" }}>
+  
+  {/* BAGIAN BARU: Kolom Khusus Logo */}
+  <div style={{ padding: "0 15px", display: "flex", justifyContent: "center" }}>
+    <img src="/logo.png" alt="Logo GMIT" style={{ width: "80px", height: "auto" }} />
+  </div>
+
+  {/* Kolom Tengah: Teks GMIT */}
+  <div style={{ flex: "1", borderRight: "1px solid black", padding: "10px 5px", textAlign: "center", lineHeight: "1.4" }}>
+    <div style={{ fontSize: "12px", fontWeight: "bold" }}>GEREJA MASEHI INJILI DI TIMOR</div>
+    <div style={{ fontSize: "12px" }}>(GBM, GPI dan Anggota PGI)</div>
+    <div style={{ fontSize: "12px", fontWeight: "bold" }}>KLASIS MOLLO BARAT</div>
+    <div style={{ fontSize: "12px", fontWeight: "bold", textTransform: "uppercase" }}>MAJELIS JEMAAT {profilGereja.namaJemaat}</div>
+    <div style={{ fontSize: "14px", fontWeight: "bold", textTransform: "uppercase" }}>MATA JEMAAT {profilGereja.namaMataJemaat}</div>
+  </div>
+  
+  {/* Kolom Kanan: Info Warta */}
+  <div style={{ flex: "1", padding: "10px 5px", textAlign: "center", display: "flex", flexDirection: "column", justifyContent: "center", lineHeight: "1.4" }}>
+    <div style={{ fontSize: "16px", fontWeight: "bold" }}>WARTA MINGGU</div>
+    <div style={{ fontSize: "16px", margin: "10px 0" }}>{tanggalTerpilih ? formatTgl(tanggalTerpilih) : "-"}</div>
+    <div style={{ fontSize: "16px", fontWeight: "bold" }}>
+      {mingguIni ? (mingguIni.masa_raya || mingguIni.tema || "KEBAKTIAN MINGGU") : "-"}
+    </div>
+  </div>
+</div>
+{/* ======== SELESAI KOP SURAT ======== */}
 
           {/* ======== KATA SAMBUTAN (PINDAH KE DALAM TAB 1) ======== */}
           <div style={{ marginTop: "20px", marginBottom: "35px", fontSize: "15px", lineHeight: "1.6", textAlign: "justify", fontFamily: "'Times New Roman', Times, serif", color: "black" }}>
@@ -1070,33 +1260,14 @@ export default function Dashboard() {
                       {/* LOGIKA PENGECEKAN: Apakah ini PDF? */}
                       {(typeof file === "string" ? file.toLowerCase().endsWith(".pdf") : file && file.type === "application/pdf") ? (
                         
-                        /* JIKA PDF: Tampilkan Langsung Dokumennya */
-                        <div style={{ width: "100%", height: "100%", minHeight: "200px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "0" }}>
+                        /* JIKA PDF: Panggil Sub-Komponen */
+                        <div style={{ width: "100%", height: "100%", minHeight: "200px", display: "flex", flexDirection: "column", padding: "0" }}>
                           {typeof file === "string" ? (
-                            <>
-                              {/* 1.A TAMPILAN LAPTOP (Iframe PDF Asli) */}
-                              <div className="no-print pdf-desktop">
-                                <iframe src={`${file}#view=FitH`} width="100%" height="100%" style={{ border: "none" }} title="Laporan PDF" />
-                              </div>
-
-                              {/* 1.B TAMPILAN HP (Trik Cloudinary: Tampilkan PDF sebagai Gambar JPG agar HP tidak menolak) */}
-                              <div className="no-print pdf-mobile" style={{ backgroundColor: "#f4f4f4", paddingBottom: "10px" }}>
-                                <img src={file.replace(/\.pdf$/i, ".jpg")} style={{ width: "100%", height: "auto", display: "block" }} alt="Laporan Keuangan Mobile" />
-                                {/* Tombol opsional jika jemaat ingin mendownload file aslinya */}
-                                <div style={{ textAlign: "center", marginTop: "10px" }}>
-                                  <a href={file} target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", backgroundColor: "#0A2540", color: "white", padding: "8px 20px", borderRadius: "5px", textDecoration: "none", fontSize: "14px", fontWeight: "bold" }}>
-                                    📥 Download PDF Asli
-                                  </a>
-                                </div>
-                              </div>
-                              
-                              {/* 2. TAMPILAN CETAK/PRINT (Trik Cloudinary: Ubah PDF jadi JPG otomatis) */}
-                              <img src={file.replace(/\.pdf$/i, ".jpg")} className="print-only item-gambar-cetak" style={{ width: "100%", height: "auto" }} alt="Cetak Laporan PDF" />
-                            </>
+                            <PdfViewerCetak url={file} />
                           ) : (
                             <div style={{ textAlign: "center", padding: "40px" }}>
                               <div style={{ fontSize: "50px", marginBottom: "10px" }}>📄</div>
-                              <span style={{ color: "#28a745", fontWeight: "bold", fontSize: "15px" }}>PDF siap diunggah...<br/>(Isi laporan akan muncul di sini setelah Anda klik Simpan ke Server)</span>
+                              <span style={{ color: "#28a745", fontWeight: "bold", fontSize: "15px" }}>PDF siap diunggah...<br/>(Klik Simpan ke Server)</span>
                             </div>
                           )}
                         </div>

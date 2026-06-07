@@ -35,7 +35,8 @@ export default function Tentang() {
   const {
     namaKlasis, namaJemaat, namaMataJemaat, namaPendeta,
     alamatLengkap, visiMisi, linkDataJemaat, emailGereja, kontakWA,
-    wakilKetua, sekretaris, tautanLogo
+    wakilKetua, sekretaris, wakilSekretaris, bendahara, wakilBendahara, 
+    tautanLogo, linkKlasis
   } = profilGereja;
 
   return (
@@ -51,7 +52,7 @@ export default function Tentang() {
       </div>
 
       <div style={{ display: "flex", gap: "30px", flexWrap: "wrap" }}>
-        {/* BAGIAN KIRI: LOGO & LINK PENDATAAN */}
+        {/* BAGIAN KIRI: LOGO & LINK-LINK PENTING */}
         <div style={{ flex: "1 1 300px", display: "flex", flexDirection: "column", gap: "20px" }}>
           <div style={{ border: "1px solid #ddd", borderRadius: "8px", padding: "20px", textAlign: "center", backgroundColor: "#fdfdfd" }}>
             {tautanLogo ? (
@@ -62,22 +63,30 @@ export default function Tentang() {
               />
             ) : (
               <div style={{ width: "100px", height: "100px", backgroundColor: "#e9ecef", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 15px auto", color: "gray", fontSize: "30px" }}>
-                ⛪
+                🏢
               </div>
             )}
             <h3 style={{ margin: "0 0 5px 0", color: "#0A2540", fontSize: "18px" }}>{namaMataJemaat || "Syalom Haususu"}</h3>
             <p style={{ margin: 0, fontSize: "13px", color: "gray" }}>Pendeta: {namaPendeta || "-"}</p>
           </div>
 
+          {/* AREA TOMBOL LINK */}
           <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
             {linkDataJemaat ? (
               <a href={linkDataJemaat} target="_blank" rel="noreferrer" style={{ display: "block", textAlign: "center", padding: "12px", backgroundColor: "#007BFF", color: "white", fontWeight: "bold", textDecoration: "none", borderRadius: "6px", boxShadow: "0 2px 4px rgba(0,123,255,0.1)" }}>
-                📊 Akses Tautan Pendataan Jemaat
+                📊 Akses Pendataan Jemaat
               </a>
             ) : (
               <div style={{ padding: "12px", textAlign: "center", backgroundColor: "#fff3cd", color: "#856404", borderRadius: "6px", fontSize: "13px", border: "1px solid #ffeeba" }}>
                 ⚠️ Tautan database jemaat belum dikonfigurasi
               </div>
+            )}
+
+            {/* TAMBAHAN BARU: LINK KLASIS */}
+            {linkKlasis && (
+              <a href={linkKlasis} target="_blank" rel="noreferrer" style={{ display: "block", textAlign: "center", padding: "12px", backgroundColor: "#28a745", color: "white", fontWeight: "bold", textDecoration: "none", borderRadius: "6px", boxShadow: "0 2px 4px rgba(40,167,69,0.1)" }}>
+                🌐 Link Klasis {namaKlasis || "Mollo Barat"}
+              </a>
             )}
           </div>
         </div>
@@ -113,13 +122,18 @@ export default function Tentang() {
             <p style={{ margin: 0, fontSize: "14px", color: "#555" }}>{alamatLengkap || "-"}</p>
           </div>
 
+          {/* PERUBAHAN: STRUKTUR PENGURUS YANG LEBIH LENGKAP */}
           <div style={{ padding: "15px", backgroundColor: "#f4f8ff", borderRadius: "8px", border: "1px solid #cce5ff" }}>
-            <h4 style={{ color: "#0A2540", margin: "0 0 10px 0", fontSize: "14px" }}>Struktur Pengurus Utama</h4>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "14px", flexWrap: "wrap", gap: "10px" }}>
-              <div><strong>Wakil Ketua:</strong> {wakilKetua || "-"}</div>
-              <div><strong>Sekretaris:</strong> {sekretaris || "-"}</div>
+            <h4 style={{ color: "#0A2540", margin: "0 0 15px 0", fontSize: "14px", borderBottom: "1px solid #b8daff", paddingBottom: "8px" }}>Struktur Pengurus Utama</h4>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "15px", fontSize: "14px" }}>
+              <div><strong style={{color:"#0056b3"}}>Wakil Ketua:</strong><br/>{wakilKetua || "-"}</div>
+              <div><strong style={{color:"#0056b3"}}>Sekretaris:</strong><br/>{sekretaris || "-"}</div>
+              <div><strong style={{color:"#0056b3"}}>Wakil Sekretaris:</strong><br/>{wakilSekretaris || "-"}</div>
+              <div><strong style={{color:"#0056b3"}}>Bendahara:</strong><br/>{bendahara || "-"}</div>
+              <div style={{ gridColumn: "1 / -1" }}><strong style={{color:"#0056b3"}}>Wakil Bendahara:</strong><br/>{wakilBendahara || "-"}</div>
             </div>
           </div>
+
         </div>
       </div>
     </div>

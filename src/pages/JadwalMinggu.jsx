@@ -27,7 +27,6 @@ function FiturPasteMasal({ judulKolom, onSimpan }) {
         let parsed = JSON.parse(teksMentah);
         if (!Array.isArray(parsed)) throw new Error("JSON harus Array!");
         
-        // AUTO-MAPPER JSON: Mencocokkan nama kolom Excel dengan key sistem kita
         const hasilParse = parsed.map((baris) => {
           let barisData = {};
           judulKolom.forEach((judul) => {
@@ -35,7 +34,6 @@ function FiturPasteMasal({ judulKolom, onSimpan }) {
               const targetKey = judul.key.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
               const targetLabel = judul.label.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
               
-              // Cari key di JSON yang paling mendekati target (Abaikan spasi & huruf besar)
               const foundKey = Object.keys(baris).find(k => {
                 const cleanK = k.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
                 return cleanK === targetKey || cleanK === targetLabel;
@@ -106,6 +104,10 @@ export default function JadwalMinggu() {
   const [jadwalMinggu, setJadwalMinggu] = useState([]);
   const [loading, setLoading] = useState(true);
   
+  // STRATEGI ARSIP TAHUNAN: State untuk menyimpan tahun yang sedang aktif
+  const currentYear = new Date().getFullYear().toString();
+  const [tahunAktif, setTahunAktif] = useState(currentYear);
+
   const [showModalAdd, setShowModalAdd] = useState(false);
   const [showModalEdit, setShowModalEdit] = useState(false);
   
@@ -113,8 +115,7 @@ export default function JadwalMinggu() {
     tanggal: "", masa_raya: "", mazmur: "", pembacaan: "", 
     stola: "", tema: "", petugas: "", pendamping: "", 
     baca_firman: "", doa_persembahan: "", busana: "", psvg: "",
-    pemandu_lagu: "", // Penambahan state pemandu_lagu
-    pemandu_lagu_rayon: "" // <--- TAMBAHAN BARU
+    pemandu_lagu: "", pemandu_lagu_rayon: ""
   });
   const [editId, setEditId] = useState(null);
 
@@ -128,35 +129,61 @@ export default function JadwalMinggu() {
     { key: "busana", label: "Busana" }, { key: "psvg", label: "PS / VG" },
     { key: "petugas", label: "Petugas" }, { key: "pendamping", label: "Pendamping" },
     { key: "baca_firman", label: "Baca Firman" }, { key: "doa_persembahan", label: "Doa Persembahan" },
-    { key: "pemandu_lagu", label: "Pemandu Lagu" }, // Penambahan kolom untuk tabel dan mapper
-    { key: "pemandu_lagu_rayon", label: "Pemandu Lagu Rayon" } // <--- TAMBAHAN BARU
+    { key: "pemandu_lagu", label: "Pemandu Lagu" },
+    { key: "pemandu_lagu_rayon", label: "Pemandu Lagu Rayon" }
   ];
 
+  // FILTER TAHUNAN: Tarik data & Filter berdasarkan dropdown tahun
   const fetchJadwal = async () => {
     setLoading(true);
-    const q = await getDocs(collection(db, "jadwal_minggu"));
-    setJadwalMinggu(q.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => new Date(a.tanggal) - new Date(b.tanggal)));
-    setLoading(false);
+    try {
+      const q = await getDocs(collection(db, "jadwal_minggu"));
+      const jadwalRaw = q.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      // BACKWARD COMPATIBILITY: Jika data lama tidak punya 'tahunLayanan', anggap 2026
+      const jadwalTerfilter = jadwalRaw
+        .filter(j => (j.tahunLayanan || "2026") === tahunAktif)
+        .sort((a,b) => new Date(a.tanggal) - new Date(b.tanggal));
+
+      setJadwalMinggu(jadwalTerfilter);
+      setCurrentPage(1); // Reset halaman jika tahun berubah
+    } catch (error) {
+      console.error("Gagal menarik jadwal minggu:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  useEffect(() => { fetchJadwal(); }, []);
+  // Trigger ulang pengambilan data jika tahunAktif berubah
+  useEffect(() => { fetchJadwal(); }, [tahunAktif]);
 
+  // INJEKSI TAHUN SAAT SIMPAN PASTE MASAL
   const handleSimpanKeDatabase = async (dataDraft) => {
     try {
       const jadwalMingguRef = collection(db, "jadwal_minggu");
       for (const jadwal of dataDraft) {
-        await addDoc(jadwalMingguRef, { ...jadwal, kategoriPelayanan: "Kebaktian Minggu" });
+        await addDoc(jadwalMingguRef, { 
+          ...jadwal, 
+          kategoriPelayanan: "Kebaktian Minggu",
+          tahunLayanan: tahunAktif // <-- Inject Arsip Tahun
+        });
       }
-      alert("Berhasil disimpan!"); fetchJadwal();
+      alert(`Berhasil disimpan ke Arsip ${tahunAktif}!`); 
+      fetchJadwal();
     } catch (error) { alert("Gagal menyimpan data masal."); }
   };
 
+  // INJEKSI TAHUN SAAT SIMPAN MANUAL
   const handleSimpanManual = async (e) => {
     e.preventDefault();
     if (!formData.tanggal) return alert("Pilih tanggal!");
     try {
-      await addDoc(collection(db, "jadwal_minggu"), { ...formData, kategoriPelayanan: "Kebaktian Minggu" });
-      alert("Jadwal ditambahkan!");
+      await addDoc(collection(db, "jadwal_minggu"), { 
+        ...formData, 
+        kategoriPelayanan: "Kebaktian Minggu",
+        tahunLayanan: tahunAktif // <-- Inject Arsip Tahun
+      });
+      alert(`Jadwal ditambahkan ke Arsip ${tahunAktif}!`);
       resetForm(); setShowModalAdd(false); fetchJadwal();
     } catch (error) { alert("Gagal menyimpan jadwal manual."); }
   };
@@ -182,15 +209,15 @@ export default function JadwalMinggu() {
       tanggal: jadwal.tanggal || "", masa_raya: jadwal.masa_raya || "", mazmur: jadwal.mazmur || "", pembacaan: jadwal.pembacaan || "", 
       stola: jadwal.stola || "", tema: jadwal.tema || "", petugas: jadwal.petugas || "", pendamping: jadwal.pendamping || "", 
       baca_firman: jadwal.baca_firman || "", doa_persembahan: jadwal.doa_persembahan || "", busana: jadwal.busana || "", psvg: jadwal.psvg || "",
-      pemandu_lagu: jadwal.pemandu_lagu || "", // Memastikan data lama masuk ke form edit
-      pemandu_lagu_rayon: jadwal.pemandu_lagu_rayon || "" // <--- TAMBAHAN BARU
+      pemandu_lagu: jadwal.pemandu_lagu || "", 
+      pemandu_lagu_rayon: jadwal.pemandu_lagu_rayon || ""
     });
     setEditId(jadwal.id);
     setShowModalEdit(true);
   };
 
   const resetForm = () => {
-    setFormData({ tanggal: "", masa_raya: "", mazmur: "", pembacaan: "", stola: "", tema: "", petugas: "", pendamping: "", baca_firman: "", doa_persembahan: "", busana: "", psvg: "", pemandu_lagu: "", pemandu_lagu_rayon: "" }); // <--- PASTIKAN ADA KEDUANYA DI SINI
+    setFormData({ tanggal: "", masa_raya: "", mazmur: "", pembacaan: "", stola: "", tema: "", petugas: "", pendamping: "", baca_firman: "", doa_persembahan: "", busana: "", psvg: "", pemandu_lagu: "", pemandu_lagu_rayon: "" });
     setEditId(null);
   };
 
@@ -201,15 +228,38 @@ export default function JadwalMinggu() {
 
   return (
     <div style={{ fontFamily: "Arial", maxWidth: "1200px", margin: "0 auto", padding: "20px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "2px solid #eee", paddingBottom: "10px", marginBottom: "20px" }}>
-        <h2 style={{ color: "#0A2540", margin: 0 }}>Manajemen Jadwal Kebaktian Minggu</h2>
-        <button onClick={() => { resetForm(); setShowModalAdd(true); }} style={{ padding: "10px 20px", backgroundColor: "#007BFF", color: "white", border: "none", borderRadius: "5px", cursor: "pointer", fontWeight: "bold" }}>+ Tambah Manual</button>
+      
+      {/* HEADER DENGAN DROPDOWN TAHUN */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "2px solid #eee", paddingBottom: "15px", marginBottom: "20px", flexWrap: "wrap", gap: "15px" }}>
+        <h2 style={{ color: "#0A2540", margin: 0 }}>Jadwal Kebaktian Minggu</h2>
+        
+        <div style={{ display: "flex", gap: "15px", alignItems: "center" }}>
+          {/* PEMILIH TAHUN */}
+          <div style={{ backgroundColor: "#e0f7fa", padding: "8px 15px", borderRadius: "8px", border: "1px solid #b2ebf2" }}>
+            <label style={{ fontWeight: "bold", color: "#006064", marginRight: "10px" }}>Tahun Pelayanan:</label>
+            <select 
+              value={tahunAktif} 
+              onChange={(e) => setTahunAktif(e.target.value)} 
+              style={{ padding: "8px", borderRadius: "5px", border: "1px solid #00acc1", fontWeight: "bold", backgroundColor: "white", color: "#00838f", cursor: "pointer" }}
+            >
+              <option value="2025">2025</option>
+              <option value="2026">2026</option>
+              <option value="2027">2027</option>
+              <option value="2028">2028</option>
+              <option value="2029">2029</option>
+              <option value="2030">2030</option>
+            </select>
+          </div>
+
+          <button onClick={() => { resetForm(); setShowModalAdd(true); }} style={{ padding: "10px 20px", backgroundColor: "#007BFF", color: "white", border: "none", borderRadius: "5px", cursor: "pointer", fontWeight: "bold" }}>+ Tambah Manual</button>
+        </div>
       </div>
 
+      {/* MODAL TAMBAH/EDIT */}
       {(showModalAdd || showModalEdit) && (
         <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", backgroundColor: "rgba(0,0,0,0.5)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 }}>
           <div style={{ backgroundColor: "white", padding: "25px", borderRadius: "10px", width: "90%", maxWidth: "800px", maxHeight: "90vh", overflowY: "auto" }}>
-            <h3 style={{ marginTop: 0, color: showModalEdit ? "#ffc107" : "#17a2b8" }}>{showModalEdit ? "Edit Jadwal" : "Tambah Jadwal Satuan"}</h3>
+            <h3 style={{ marginTop: 0, color: showModalEdit ? "#ffc107" : "#17a2b8" }}>{showModalEdit ? "Edit Jadwal" : `Tambah Jadwal Satuan (${tahunAktif})`}</h3>
             <form onSubmit={showModalEdit ? handleUpdateManual : handleSimpanManual}>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "15px" }}>
                 {strukturKolomMinggu.map((kolom) => (
@@ -228,14 +278,22 @@ export default function JadwalMinggu() {
         </div>
       )}
 
+      {/* FORM INPUT MASSAL */}
       <div style={{ backgroundColor: "white", padding: "20px", borderRadius: "8px", boxShadow: "0 2px 8px rgba(0,0,0,0.1)", marginBottom: "30px" }}>
-        <h3 style={{ marginTop: 0, color: "#28a745" }}>Input Jadwal Masal (Paste/JSON)</h3>
+        <h3 style={{ marginTop: 0, color: "#28a745" }}>Input Jadwal Masal (Paste Excel / JSON) - Tahun {tahunAktif}</h3>
         <FiturPasteMasal judulKolom={strukturKolomMinggu} onSimpan={handleSimpanKeDatabase} />
       </div>
 
+      {/* TABEL DATA */}
       <div style={{ backgroundColor: "white", padding: "20px", borderRadius: "8px", boxShadow: "0 2px 8px rgba(0,0,0,0.1)" }}>
-        <h3 style={{ marginTop: 0, color: "#0A2540" }}>Daftar Jadwal Kebaktian Minggu</h3>
-        {loading ? <p>Memuat data...</p> : (
+        <h3 style={{ marginTop: 0, color: "#0A2540" }}>Daftar Arsip Jadwal Minggu ({tahunAktif})</h3>
+        
+        {loading ? <p>Memuat data...</p> : jadwalMinggu.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "30px", backgroundColor: "#f9f9f9", border: "1px dashed #ccc", borderRadius: "8px" }}>
+             <span style={{ fontSize: "30px" }}>📁</span>
+             <p style={{ color: "gray", marginTop: "10px" }}>Arsip jadwal Minggu Tahun {tahunAktif} masih kosong.</p>
+          </div>
+        ) : (
           <>
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "1500px", fontSize: "13px" }}>

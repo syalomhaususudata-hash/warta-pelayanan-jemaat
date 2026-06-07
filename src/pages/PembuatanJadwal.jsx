@@ -1,3 +1,4 @@
+// src/pages/PembuatanJadwal.jsx
 import { useState, useEffect } from "react";
 import { doc, getDoc, collection, getDocs, query, where, writeBatch, updateDoc, deleteDoc } from "firebase/firestore";
 import { db } from "../firebase";
@@ -6,19 +7,17 @@ export default function PembuatanJadwal() {
   const [loading, setLoading] = useState(true);
   const [subMode, setSubMode] = useState("rayon"); 
   
-  // Data Master
+  const currentYear = new Date().getFullYear().toString();
+  const [tahunAktif, setTahunAktif] = useState(currentYear);
+  
   const [daftarRayon, setDaftarRayon] = useState([]);
   const [dataKategorial, setDataKategorial] = useState({});
   const [kategoriAktif, setKategoriAktif] = useState([]);
   const [kategoriIndex, setKategoriIndex] = useState(0);
   
-  // Target Target (Rayon/Sektor)
   const [targetTerpilih, setTargetTerpilih] = useState(null);
-  
-  // UI States
   const [showForm, setShowForm] = useState(false);
   
-  // Form Generate
   const [konfigurasi, setKonfigurasi] = useState({
     namaTarget: "", namaPenatua: "", kkPenatua: "", 
     tanggalMulai: "", tanggalAkhir: "", jumlahPelayanan: 1, 
@@ -26,32 +25,32 @@ export default function PembuatanJadwal() {
   });
   const [teksDaftarKK, setTeksDaftarKK] = useState("");
   
-  // Data Tabel
   const [jadwalTersimpan, setJadwalTersimpan] = useState([]);
   const [editBarisId, setEditBarisId] = useState(null);
   const [dataEdit, setDataEdit] = useState({});
   
-  // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
 
   useEffect(() => {
     const fetchMasterData = async () => {
+      setLoading(true);
       try {
-        // 1. Ambil Data Master Konfigurasi
         const docSnap = await getDoc(doc(db, "konfigurasi", "master_data"));
         
-        // 2. Ambil seluruh data jadwal untuk mengecek status centang awal (sudah terisi atau belum)
+        // PERBAIKAN: Ambil semua jadwal, lalu filter secara lokal. 
+        // Jika data lama tidak punya 'tahunLayanan', otomatis anggap "2026"
         const jadwalSnap = await getDocs(collection(db, "jadwal_pelayanan"));
-        const semuaJadwal = jadwalSnap.docs.map(d => d.data());
+        const semuaJadwalTahunIni = jadwalSnap.docs
+          .map(d => d.data())
+          .filter(j => (j.tahunLayanan || "2026") === tahunAktif);
 
         if (docSnap.exists()) {
           const data = docSnap.data();
           
           if (data.pengaturanRayon) {
             setDaftarRayon(data.pengaturanRayon.map(r => {
-              // Cek apakah Rayon ini sudah punya jadwal
-              const sudahAda = semuaJadwal.some(j => j.kategoriPelayanan === 'Rayon' && j.namaUnit === r.namaRayon);
+              const sudahAda = semuaJadwalTahunIni.some(j => j.kategoriPelayanan === 'Rayon' && j.namaUnit === r.namaRayon);
               return { ...r, isSelesai: sudahAda };
             }));
           }
@@ -63,8 +62,7 @@ export default function PembuatanJadwal() {
             let katData = { ...data.pengaturanKategorial };
             aktifKats.forEach(k => {
               katData[k].daftarSektor = katData[k].daftarSektor.map(s => {
-                // Cek apakah Sektor pada Kategori ini sudah punya jadwal (Isolasi 3 Parameter)
-                const sudahAda = semuaJadwal.some(j => j.kategoriPelayanan === 'Kategorial' && j.namaKategoriInduk === k && j.namaUnit === s.namaSektor);
+                const sudahAda = semuaJadwalTahunIni.some(j => j.kategoriPelayanan === 'Kategorial' && j.namaKategoriInduk === k && j.namaUnit === s.namaSektor);
                 return { ...s, isSelesai: sudahAda };
               });
             });
@@ -77,14 +75,19 @@ export default function PembuatanJadwal() {
         setLoading(false);
       }
     };
+    
     fetchMasterData();
-  }, []);
+    
+    if (targetTerpilih) {
+      fetchJadwalUnit(targetTerpilih, tahunAktif);
+    }
+  }, [tahunAktif]);
 
-  // Fetch Jadwal Terisolasi agar tidak "Bocor" antar Kategori/Rayon yang namanya sama
-  const fetchJadwalUnit = async (target) => {
+  const fetchJadwalUnit = async (target, tahun = tahunAktif) => {
     if (!target) return;
     try {
       let q;
+      // PERBAIKAN: Tarik berdasarkan unit tanpa memfilter tahun di database agar data lama ikut terbaca
       if (target.tipe === 'rayon') {
         q = query(collection(db, "jadwal_pelayanan"), 
           where("kategoriPelayanan", "==", "Rayon"),
@@ -99,7 +102,11 @@ export default function PembuatanJadwal() {
       }
       
       const querySnapshot = await getDocs(q);
-      const jadwal = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const jadwalRaw = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      // PERBAIKAN: Filter data lama secara lokal (Anggap data tanpa tahun = 2026)
+      const jadwal = jadwalRaw.filter(j => (j.tahunLayanan || "2026") === tahun);
+      
       jadwal.sort((a,b) => new Date(a.tanggal) - new Date(b.tanggal));
       setJadwalTersimpan(jadwal);
       setCurrentPage(1); 
@@ -120,8 +127,7 @@ export default function PembuatanJadwal() {
       kkPenatua: ""
     }));
     
-    // Tarik data tabel berdasarkan target yang baru dipilih
-    fetchJadwalUnit(targetBaru);
+    fetchJadwalUnit(targetBaru, tahunAktif);
     setShowForm(false); 
   };
 
@@ -152,6 +158,7 @@ export default function PembuatanJadwal() {
           petugasSaatIni = "Rekan Penatua";
         }
         hasilJadwal.push({
+          tahunLayanan: tahunAktif,
           kategoriPelayanan: targetTerpilih.tipe === 'rayon' ? 'Rayon' : 'Kategorial',
           namaKategoriInduk: targetTerpilih.tipe === 'kategori' ? targetTerpilih.namaKategoriRoot : null,
           namaUnit: konfigurasi.namaTarget,
@@ -175,7 +182,6 @@ export default function PembuatanJadwal() {
       });
       await batch.commit();
 
-      // Beri Centang Selesai di UI Kiri
       if (targetTerpilih.tipe === 'rayon') {
         setDaftarRayon(prev => prev.map(r => r.id === targetTerpilih.id ? { ...r, isSelesai: true } : r));
       } else {
@@ -186,26 +192,24 @@ export default function PembuatanJadwal() {
         });
       }
 
-      alert("Jadwal berhasil digenerate dan disimpan!");
+      alert(`Jadwal Tahun ${tahunAktif} berhasil digenerate dan disimpan!`);
       setTeksDaftarKK("");
       setShowForm(false);
-      fetchJadwalUnit(targetTerpilih); // Refresh tabel dengan objek target
+      fetchJadwalUnit(targetTerpilih, tahunAktif); 
     } catch (error) { 
       alert("Gagal menyimpan jadwal."); 
     }
   };
 
   const handleHapusMassal = async () => {
-    if(!window.confirm(`PERINGATAN: Anda akan menghapus SELURUH data Jadwal Kebaktian untuk ${konfigurasi.namaTarget}. Tindakan ini tidak dapat dibatalkan. Lanjutkan?`)) return;
+    if(!window.confirm(`PERINGATAN: Anda akan menghapus SELURUH data Jadwal Kebaktian untuk ${konfigurasi.namaTarget} TAHUN ${tahunAktif}. Tindakan ini tidak dapat dibatalkan. Lanjutkan?`)) return;
     try {
       const batch = writeBatch(db);
-      // Hapus data yang ada di tabel saat ini (yang sudah terisolasi aman)
       jadwalTersimpan.forEach(j => {
         batch.delete(doc(db, "jadwal_pelayanan", j.id));
       });
       await batch.commit();
       
-      // Hapus Centang jadi Kotak Kosong di UI Kiri
       if (targetTerpilih.tipe === 'rayon') {
         setDaftarRayon(prev => prev.map(r => r.id === targetTerpilih.id ? { ...r, isSelesai: false } : r));
       } else {
@@ -216,7 +220,7 @@ export default function PembuatanJadwal() {
         });
       }
       
-      fetchJadwalUnit(targetTerpilih);
+      fetchJadwalUnit(targetTerpilih, tahunAktif);
     } catch (err) {
       alert("Gagal menghapus jadwal massal");
     }
@@ -225,16 +229,15 @@ export default function PembuatanJadwal() {
   const handleHapusSatu = async (id) => {
     if(!window.confirm("Hapus baris jadwal ini?")) return;
     await deleteDoc(doc(db, "jadwal_pelayanan", id));
-    fetchJadwalUnit(targetTerpilih);
+    fetchJadwalUnit(targetTerpilih, tahunAktif);
   };
 
   const handleSimpanEdit = async (id) => {
     await updateDoc(doc(db, "jadwal_pelayanan", id), dataEdit);
     setEditBarisId(null);
-    fetchJadwalUnit(targetTerpilih);
+    fetchJadwalUnit(targetTerpilih, tahunAktif);
   };
 
-  // Pagination Logic
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentJadwal = jadwalTersimpan.slice(indexOfFirstItem, indexOfLastItem);
@@ -246,26 +249,44 @@ export default function PembuatanJadwal() {
 
   return (
     <div style={{ fontFamily: "Arial", padding: "20px" }}>
-      <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
-        <button onClick={() => { setSubMode("rayon"); setTargetTerpilih(null); setJadwalTersimpan([]); setShowForm(false); }} style={{ padding: "10px", fontWeight: "bold", backgroundColor: subMode === "rayon" ? "#007BFF" : "#ddd", color: subMode === "rayon" ? "white" : "black", border: "none", cursor: "pointer", borderRadius: "5px" }}>Pelayanan Rayon</button>
-        <button onClick={() => { setSubMode("kategori"); setTargetTerpilih(null); setJadwalTersimpan([]); setShowForm(false); }} style={{ padding: "10px", fontWeight: "bold", backgroundColor: subMode === "kategori" ? "#007BFF" : "#ddd", color: subMode === "kategori" ? "white" : "black", border: "none", cursor: "pointer", borderRadius: "5px" }}>Pelayanan Kategorial</button>
+      
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", gap: "15px" }}>
+        <div style={{ display: "flex", gap: "10px" }}>
+          <button onClick={() => { setSubMode("rayon"); setTargetTerpilih(null); setJadwalTersimpan([]); setShowForm(false); }} style={{ padding: "10px", fontWeight: "bold", backgroundColor: subMode === "rayon" ? "#0A2540" : "#ddd", color: subMode === "rayon" ? "white" : "black", border: "none", cursor: "pointer", borderRadius: "5px" }}>⛪ Pelayanan Rayon</button>
+          <button onClick={() => { setSubMode("kategori"); setTargetTerpilih(null); setJadwalTersimpan([]); setShowForm(false); }} style={{ padding: "10px", fontWeight: "bold", backgroundColor: subMode === "kategori" ? "#0A2540" : "#ddd", color: subMode === "kategori" ? "white" : "black", border: "none", cursor: "pointer", borderRadius: "5px" }}>👥 Pelayanan Kategorial</button>
+        </div>
+        
+        <div style={{ backgroundColor: "#e0f7fa", padding: "8px 15px", borderRadius: "8px", border: "1px solid #b2ebf2" }}>
+          <label style={{ fontWeight: "bold", color: "#006064", marginRight: "10px" }}>Tahun Pelayanan:</label>
+          <select 
+            value={tahunAktif} 
+            onChange={(e) => setTahunAktif(e.target.value)} 
+            style={{ padding: "8px", borderRadius: "5px", border: "1px solid #00acc1", fontWeight: "bold", backgroundColor: "white", color: "#00838f", cursor: "pointer" }}
+          >
+            <option value="2025">2025</option>
+            <option value="2026">2026</option>
+            <option value="2027">2027</option>
+            <option value="2028">2028</option>
+            <option value="2029">2029</option>
+            <option value="2030">2030</option>
+          </select>
+        </div>
       </div>
 
-      <div style={{ display: "flex", gap: "20px" }}>
-        {/* PANEL KIRI */}
-        <div style={{ width: "250px", borderRight: "2px solid #ddd", paddingRight: "20px" }}>
+      <div style={{ display: "flex", gap: "20px", flexWrap: "wrap" }}>
+        <div style={{ width: "250px", borderRight: "2px solid #ddd", paddingRight: "20px", flexShrink: 0 }}>
           {subMode === "rayon" ? (
             <>
-              <h3>Daftar Rayon</h3>
+              <h3>Daftar Rayon ({tahunAktif})</h3>
               {daftarRayon.map(r => (
                 <div key={r.id} onClick={() => handlePilihTarget(r, 'rayon')} style={{ padding: "10px", border: "1px solid #ccc", marginBottom: "5px", cursor: "pointer", display: "flex", justifyContent: "space-between", backgroundColor: targetTerpilih?.id === r.id ? "#e6f2ff" : "white", borderRadius: "5px" }}>
-                  <span>{r.namaRayon}</span> <span style={{ color: r.isSelesai ? "green" : "gray" }}>{r.isSelesai ? "✅" : "◻️"}</span>
+                  <span>{r.namaRayon}</span> <span style={{ color: r.isSelesai ? "green" : "gray" }}>{r.isSelesai ? "✅" : "⬜"}</span>
                 </div>
               ))}
             </>
           ) : (
             <>
-              <h3>Daftar Kategorial</h3>
+              <h3>Daftar Kategorial ({tahunAktif})</h3>
               {kategoriAktif.length > 0 ? (
                 <>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", backgroundColor: "#333", color: "white", padding: "10px", borderRadius: "5px", marginBottom: "15px" }}>
@@ -275,7 +296,7 @@ export default function PembuatanJadwal() {
                   </div>
                   {dataKategorial[kategoriSaatIni]?.daftarSektor.map(s => (
                     <div key={s.id} onClick={() => handlePilihTarget(s, 'kategori', kategoriSaatIni)} style={{ padding: "10px", border: "1px solid #ccc", marginBottom: "5px", cursor: "pointer", display: "flex", justifyContent: "space-between", backgroundColor: targetTerpilih?.id === s.id ? "#e6f2ff" : "white", borderRadius: "5px" }}>
-                      <span>{s.namaSektor}</span> <span style={{ color: s.isSelesai ? "green" : "gray" }}>{s.isSelesai ? "✅" : "◻️"}</span>
+                      <span>{s.namaSektor}</span> <span style={{ color: s.isSelesai ? "green" : "gray" }}>{s.isSelesai ? "✅" : "⬜"}</span>
                     </div>
                   ))}
                 </>
@@ -286,21 +307,20 @@ export default function PembuatanJadwal() {
           )}
         </div>
 
-        {/* PANEL KANAN */}
-        <div style={{ flex: 1 }}>
-          {!targetTerpilih ? <h2 style={{ color: "gray", textAlign: "center", marginTop: "50px" }}>Pilih unit di panel kiri.</h2> : (
+        <div style={{ flex: 1, minWidth: "300px" }}>
+          {!targetTerpilih ? <h2 style={{ color: "gray", textAlign: "center", marginTop: "50px" }}>👈 Pilih unit di panel kiri untuk Tahun {tahunAktif}.</h2> : (
             <div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" }}>
-                <h2>Manajemen: {targetTerpilih.tipe === 'kategori' ? `${targetTerpilih.namaKategoriRoot} - ` : ''}{konfigurasi.namaTarget}</h2>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px", flexWrap: "wrap", gap: "10px" }}>
+                <h2 style={{ margin: 0 }}>Manajemen: {targetTerpilih.tipe === 'kategori' ? `${targetTerpilih.namaKategoriRoot} - ` : ''}{konfigurasi.namaTarget}</h2>
                 {jadwalTersimpan.length > 0 && (
                   <button onClick={handleHapusMassal} style={{ padding: "8px 15px", backgroundColor: "#dc3545", color: "white", border: "none", borderRadius: "5px", cursor: "pointer", fontWeight: "bold" }}>
-                    🗑️ Kosongkan Data Jadwal {konfigurasi.namaTarget}
+                    🗑️ Kosongkan Data {tahunAktif}
                   </button>
                 )}
               </div>
 
               <button onClick={() => setShowForm(!showForm)} style={{ marginBottom: "20px", padding: "10px 20px", backgroundColor: "#28a745", color: "white", border: "none", borderRadius: "5px", cursor: "pointer", fontWeight: "bold", width: "100%" }}>
-                {showForm ? "Sembunyikan Form Tambah Jadwal" : "+ Tambah Jadwal Manual"}
+                {showForm ? "Sembunyikan Form Tambah Jadwal" : "+ Generate Jadwal Baru Tahun " + tahunAktif}
               </button>
 
               {showForm && (
@@ -310,7 +330,7 @@ export default function PembuatanJadwal() {
                   <div><label>Tgl Mulai</label><input type="date" name="tanggalMulai" value={konfigurasi.tanggalMulai} onChange={handleConfigChange} style={{ width: "100%", padding: "5px" }} /></div>
                   <div><label>Tgl Akhir</label><input type="date" name="tanggalAkhir" value={konfigurasi.tanggalAkhir} onChange={handleConfigChange} style={{ width: "100%", padding: "5px" }} /></div>
                   
-                  <div style={{ gridColumn: "1 / span 2", display: "flex", gap: "10px", marginTop: "10px" }}>
+                  <div style={{ gridColumn: "1 / -1", display: "flex", gap: "10px", marginTop: "10px", flexWrap: "wrap" }}>
                     <select name="jangkaWaktu" value={konfigurasi.jangkaWaktu} onChange={handleConfigChange} style={{ padding: "5px" }}>
                       <option value={1}>Tiap Minggu</option><option value={2}>Lompat 2 Minggu</option>
                     </select>
@@ -326,15 +346,16 @@ export default function PembuatanJadwal() {
                       </select>
                     )}
                   </div>
-                  <textarea rows="4" value={teksDaftarKK} onChange={e => setTeksDaftarKK(e.target.value)} placeholder="Paste data anggota di sini..." style={{ gridColumn: "1 / span 2", width: "100%", marginTop: "10px", padding: "10px" }}></textarea>
-                  <button onClick={buatDanSimpanJadwal} style={{ gridColumn: "1 / span 2", padding: "10px", backgroundColor: "#007BFF", color: "white", border: "none", borderRadius: "5px", cursor: "pointer", fontWeight: "bold" }}>Generate & Simpan</button>
+                  <textarea rows="4" value={teksDaftarKK} onChange={e => setTeksDaftarKK(e.target.value)} placeholder="Paste data anggota di sini..." style={{ gridColumn: "1 / -1", width: "100%", marginTop: "10px", padding: "10px", boxSizing: "border-box" }}></textarea>
+                  <button onClick={buatDanSimpanJadwal} style={{ gridColumn: "1 / -1", padding: "12px", backgroundColor: "#007BFF", color: "white", border: "none", borderRadius: "5px", cursor: "pointer", fontWeight: "bold" }}>
+                    🚀 Generate & Simpan Arsip {tahunAktif}
+                  </button>
                 </div>
               )}
 
-              {/* TABEL HASIL & INLINE EDIT */}
               <div style={{ marginTop: "20px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
-                  <h3 style={{ margin: 0 }}>Hasil Jadwal: {konfigurasi.namaTarget}</h3>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", flexWrap: "wrap" }}>
+                  <h3 style={{ margin: 0 }}>Hasil Jadwal ({tahunAktif})</h3>
                   {jadwalTersimpan.length > 0 && (
                     <select value={itemsPerPage} onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }} style={{ padding: "5px", borderRadius: "5px" }}>
                       <option value={5}>Tampilkan 5 Baris</option>
@@ -344,8 +365,8 @@ export default function PembuatanJadwal() {
                 </div>
 
                 {jadwalTersimpan.length > 0 ? (
-                  <>
-                    <table style={{ width: "100%", borderCollapse: "collapse", border: "1px solid #ddd" }}>
+                  <div style={{ overflowX: "auto" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", border: "1px solid #ddd", minWidth: "500px" }}>
                       <thead>
                         <tr style={{ background: "#eee", textAlign: "left" }}>
                           <th style={{ padding: "10px", borderBottom: "1px solid #ccc" }}>Tanggal</th>
@@ -359,9 +380,9 @@ export default function PembuatanJadwal() {
                           <tr key={j.id} style={{ borderBottom: "1px solid #eee" }}>
                             {editBarisId === j.id ? (
                               <>
-                                <td style={{ padding: "8px" }}><input type="date" value={dataEdit.tanggal} onChange={(e) => setDataEdit({ ...dataEdit, tanggal: e.target.value })} style={{ width: "100%" }} /></td>
-                                <td style={{ padding: "8px" }}><input type="text" value={dataEdit.tempatKeluarga} onChange={(e) => setDataEdit({ ...dataEdit, tempatKeluarga: e.target.value })} style={{ width: "100%" }} /></td>
-                                <td style={{ padding: "8px" }}><input type="text" value={dataEdit.petugas} onChange={(e) => setDataEdit({ ...dataEdit, petugas: e.target.value })} style={{ width: "100%" }} /></td>
+                                <td style={{ padding: "8px" }}><input type="date" value={dataEdit.tanggal} onChange={(e) => setDataEdit({ ...dataEdit, tanggal: e.target.value })} style={{ width: "100%", padding: "4px" }} /></td>
+                                <td style={{ padding: "8px" }}><input type="text" value={dataEdit.tempatKeluarga} onChange={(e) => setDataEdit({ ...dataEdit, tempatKeluarga: e.target.value })} style={{ width: "100%", padding: "4px" }} /></td>
+                                <td style={{ padding: "8px" }}><input type="text" value={dataEdit.petugas} onChange={(e) => setDataEdit({ ...dataEdit, petugas: e.target.value })} style={{ width: "100%", padding: "4px" }} /></td>
                                 <td style={{ padding: "8px", textAlign: "center", display: "flex", gap: "5px", justifyContent: "center" }}>
                                   <button onClick={() => handleSimpanEdit(j.id)} style={{ padding: "5px 10px", backgroundColor: "#28a745", color: "white", border: "none", borderRadius: "3px", cursor: "pointer" }}>Simpan</button>
                                   <button onClick={() => setEditBarisId(null)} style={{ padding: "5px 10px", backgroundColor: "#6c757d", color: "white", border: "none", borderRadius: "3px", cursor: "pointer" }}>Batal</button>
@@ -383,15 +404,17 @@ export default function PembuatanJadwal() {
                       </tbody>
                     </table>
 
-                    {/* Kontrol Pagination */}
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "15px" }}>
                       <button onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))} disabled={currentPage === 1} style={{ padding: "8px 12px", cursor: currentPage === 1 ? "not-allowed" : "pointer" }}>&lt; Prev</button>
                       <span>Halaman {currentPage} dari {totalPages}</span>
                       <button onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))} disabled={currentPage === totalPages} style={{ padding: "8px 12px", cursor: currentPage === totalPages ? "not-allowed" : "pointer" }}>Next &gt;</button>
                     </div>
-                  </>
+                  </div>
                 ) : (
-                  <p style={{ textAlign: "center", color: "gray", marginTop: "20px" }}>Belum ada jadwal tersimpan untuk unit ini. Status tabel masih kosong (◻️).</p>
+                  <div style={{ textAlign: "center", padding: "30px", backgroundColor: "#fff", border: "1px dashed #ccc", borderRadius: "8px", marginTop: "20px" }}>
+                    <span style={{ fontSize: "30px" }}>📁</span>
+                    <p style={{ color: "gray", marginTop: "10px" }}>Arsip jadwal Tahun {tahunAktif} masih kosong.<br/>Silakan isi form di atas dan klik Generate.</p>
+                  </div>
                 )}
               </div>
             </div>
