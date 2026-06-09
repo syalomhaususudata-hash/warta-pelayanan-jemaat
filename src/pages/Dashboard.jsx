@@ -834,6 +834,11 @@ return (
             width: 100% !important;
           }
 
+          /* KODE BARU: Memastikan elemen navigasi & tombol benar-benar hilang saat dicetak */
+          .gambar-wrapper-cetak .no-print {
+            display: none !important;
+          }
+
           .item-gambar-cetak { 
             /* KUNCI: Turunkan skala lebar dari 85% menjadi 65% (atau 60% jika masih kurang muat) */
             width: 45% !important; 
@@ -1431,7 +1436,7 @@ return (
             <div style={{ padding: "20px", backgroundColor: "#fff", border: "1px solid #e0e0e0", borderRadius: "8px", fontFamily: "Arial", lineHeight: "1.6", fontSize: "14px" }}>
               
               {/* RENDER KATEGORI JIKA ADA ISINYA SAJA */}
-              {wartaLain.sapaan && <div style={{marginBottom:"20px"}}><h4>Sapaan</h4><p style={{whiteSpace:"pre-wrap"}}>{wartaLain.sapaan}</p></div>}
+              {wartaLain.sapaan && <div style={{marginBottom:"20px"}}><h4>Sapaan</h4><p style={{whiteSpace:"pre-wrap", textAlign: "justify"}}>{wartaLain.sapaan}</p></div>}
               
               {wartaLain.ulangTahun && <div style={{marginBottom:"20px"}}><h4>Ucapan Selamat Ulang Tahun</h4>{renderTabelExcel(wartaLain.ulangTahun)}</div>}
               
@@ -1475,7 +1480,7 @@ return (
               
               {wartaLain.pembangunan && <div style={{marginBottom:"20px"}}><h4>Informasi Pembangunan</h4><p style={{whiteSpace:"pre-wrap"}}>{wartaLain.pembangunan}</p></div>}
               
-              {wartaLain.informasiLain && <div style={{marginBottom:"20px"}}><h4>Informasi Lain-lain</h4><p style={{whiteSpace:"pre-wrap"}}>{wartaLain.informasiLain}</p></div>}
+              {wartaLain.informasiLain && <div style={{marginBottom:"20px"}}><h4>Informasi Lain-lain</h4><p style={{whiteSpace:"pre-wrap", textAlign: "justify"}}>{wartaLain.informasiLain}</p></div>}
 
               {/* Jika Semua Kosong */}
               {(!wartaLain.sapaan && !wartaLain.ulangTahun && !wartaLain.baptisan && !wartaLain.pernikahan?.teks && !wartaLain.kematian?.teks && !wartaLain.pembangunan && !wartaLain.informasiLain) && (
