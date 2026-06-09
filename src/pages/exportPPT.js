@@ -168,25 +168,17 @@ export const buatPPTWarta = ({
   }
 
   // ==========================================
-  // SLIDE: WARTA KEUANGAN (1 Gambar = 3 Slide)
+  // SLIDE: WARTA KEUANGAN (1 Gambar = 1 Slide)
   // ==========================================
   if (fileKeuangan && fileKeuangan.length > 0) {
     fileKeuangan.forEach((fileUrl, fIdx) => {
        if (typeof fileUrl === "string" && !fileUrl.toLowerCase().endsWith(".pdf")) {
-          // Melakukan looping 3 kali untuk memotong gambar (Bagian Atas, Tengah, Bawah)
-          for (let i = 0; i < 3; i++) {
-            let slideUang = pres.addSlide();
-            slideUang.addText(`WARTA KEUANGAN Lbr.${fIdx + 1} (Bag. ${i + 1})`, { x: 0.5, y: 0.3, w: "90%", fontSize: 26, bold: true, color: warnaUtama, border: { type: "bottom", pt: 2, color: warnaUtama } });
-            
-            // Trik Y Offset: 1.0 adalah titik mula. 4.5 inch adalah tinggi kanvas konten.
-            // Saat i=0 (Atas): y = 1.0
-            // Saat i=1 (Tengah): y = -3.5 (Gambar naik)
-            // Saat i=2 (Bawah): y = -8.0 (Gambar naik penuh)
-            let offsetKoordinatY = 1.0 - (i * 4.5);
-            
-            // Mengatur tinggi gambar 3x lipat (13.5) dari tinggi tampilan normal (4.5)
-            slideUang.addImage({ path: fileUrl, x: 0.5, y: offsetKoordinatY, w: 9, h: 13.5 });
-          }
+          let slideUang = pres.addSlide();
+          slideUang.addText(`WARTA KEUANGAN (Lembar ${fIdx + 1})`, { x: 0.5, y: 0.3, w: "90%", fontSize: 26, bold: true, color: warnaUtama, border: { type: "bottom", pt: 2, color: warnaUtama } });
+          
+          // Menggunakan sizing { type: "contain" } agar gambar presisi menempati area
+          // tanpa terpotong (auto-fit).
+          slideUang.addImage({ path: fileUrl, x: 0.5, y: 1.0, w: 9, h: 4.5, sizing: { type: "contain" } });
        }
     });
   }
@@ -221,7 +213,8 @@ export const buatPPTWarta = ({
 
     if (wartaLain.ulangTahun) {
         const barisHutTeks = wartaLain.ulangTahun.trim().split('\n');
-        const chunksHut = pecahArray(barisHutTeks, 6); 
+        // UPDATE: Ubah batasan dari 6 menjadi 5 orang per slide
+        const chunksHut = pecahArray(barisHutTeks, 5); 
         chunksHut.forEach((chunk, index) => {
             let slideHut = pres.addSlide();
             slideHut.addText(`WARTA ULANG TAHUN ${chunksHut.length > 1 ? `(Bagian ${index + 1})` : ""}`, { x: 0.5, y: 0.3, w: "90%", fontSize: 26, bold: true, color: warnaUtama, border: { type: "bottom", pt: 2, color: warnaUtama } });

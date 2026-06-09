@@ -805,24 +805,44 @@ return (
             line-height: 1.1 !important;
           } 
           
-          /* ATURAN GAMBAR KEUANGAN */
-          .grid-keuangan { display: block !important; }
+         /* ATURAN GAMBAR KEUANGAN (UPDATE FINAL: PERKECIL SKALA AGAR MUAT 3 GAMBAR) */
+          .grid-keuangan { 
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important; 
+            gap: 5px !important; /* Jarak antar gambar dirapatkan menjadi 5px */
+          }
+          
           .gambar-wrapper-cetak {
-            display: block !important;
+            display: flex !important;
+            justify-content: center !important;
             width: 100% !important; 
-            page-break-after: always !important; 
+            page-break-after: auto !important; 
             page-break-inside: avoid !important; 
             border: none !important; 
             padding: 0 !important;
-            margin: 0 0 20px 0 !important;
+            margin: 0 0 5px 0 !important; /* Margin bawah dirapatkan */
+            box-shadow: none !important;
           }
-          .item-gambar-cetak { 
+          
+          .gambar-wrapper-cetak > div {
+            padding: 0 !important;
+            min-height: auto !important;
+            background-color: transparent !important;
+            display: flex !important;
+            justify-content: center !important;
             width: 100% !important;
-            max-height: 290mm !important; 
+          }
+
+          .item-gambar-cetak { 
+            /* KUNCI: Turunkan skala lebar dari 85% menjadi 65% (atau 60% jika masih kurang muat) */
+            width: 45% !important; 
+            max-height: none !important; 
+            height: auto !important; 
             object-fit: contain !important; 
             border: none !important; 
           }
-        }
+
           /* --- ATURAN SCROLL PDF HP & ANTI-POTONG SAAT CETAK --- */
         @media screen and (max-width: 768px) {
           .pdf-container-dalam { min-width: 800px !important; }
