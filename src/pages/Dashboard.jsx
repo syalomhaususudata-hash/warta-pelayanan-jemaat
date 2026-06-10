@@ -6,6 +6,9 @@ import { getAuth } from "firebase/auth"; // <-- Tambahkan ini di atas
 
 import { buatPPTWarta } from "./exportPPT"; // <--- IMPORT FILE PPT BARU
 
+// KODE BARU: Import komponen Liturgi
+import LiturgiMinggu from "./LiturgiMinggu";
+
 // Kode Baru: Import react-pdf
 import { Document, Page, pdfjs } from 'react-pdf';
 import "react-pdf/dist/Page/AnnotationLayer.css";
@@ -912,19 +915,21 @@ return (
         <button style={getTabStyle("keuangan")} onClick={() => setTabAktif("keuangan")}>💰 Warta Keuangan</button>
         <button style={getTabStyle("lainnya")} onClick={() => setTabAktif("lainnya")}>📢 Warta Lain-lain</button>
         <button style={getTabStyle("bacaan")} onClick={() => setTabAktif("bacaan")}>📖 Bacaan Harian</button>
-        
-        {/* BUNGKUS KEDUA TOMBOL AGAR BERSEBELAHAN DI KANAN */}
+        {/* TAMBAHKAN TOMBOL TAB LITURGI DI SINI */}
+        <button style={getTabStyle("liturgi")} onClick={() => setTabAktif("liturgi")}>📚 TATA IBADAH</button>
+        {/* BUNGKUS TOMBOL AGAR BERSEBELAHAN DI KANAN */}
         <div style={{ marginLeft: "auto", display: "flex", gap: "10px", alignItems: "flex-end" }}>
           
           {/* Tombol Export PPT Baru (HANYA MUNCUL UNTUK SEKRETARIS) */}
           {apakahSekretaris && (
-            <button onClick={handleDownloadPPT} style={{ padding: "12px 20px", backgroundColor: "#f25c05", color: "white", border: "none", borderRadius: "8px 8px 0 0", fontWeight: "bold", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}>
-              📊 Download PPT
+            <button onClick={handleDownloadPPT} style={{ padding: 
+"12px 20px", backgroundColor: "#f25c05", color: "white", border: "none", borderRadius: "8px 8px 0 0", fontWeight: "bold", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}>
+              ⬇️ Download Warta PPT
             </button>
           )}
           
-          <button onClick={() => window.print()} style={{ padding: "12px 25px", backgroundColor: "#28a745", color: "white", border: "none", borderRadius: "8px 8px 0 0", fontWeight: "bold", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}>
-            🖨️ Cetak Keseluruhan
+          <button onClick={() => window.print()} style={{ padding: "12px 25px", backgroundColor: "#28a745", color: "white", border: "none", borderRadius: "8px 8px 0 0", }}>
+            🖨️ Cetak Warta
           </button>
         </div>
       </div>
@@ -1534,6 +1539,15 @@ return (
             </div>
           )}
         </div>
+
+        {/* --- KODE BARU: TAB 5 TATA IBADAH --- */}
+        <div className={`print-section no-print ${tabAktif === "liturgi" ? "screen-block" : "screen-none"}`}>
+          <LiturgiMinggu 
+            tanggalTerpilih={tanggalTerpilih} 
+            isSekretaris={apakahSekretaris} 
+          />
+        </div>
+        {/* -------------------------------------- */}
 
         {/* BLOK TANDA TANGAN (HANYA MUNCUL SAAT CETAK KESELURUHAN) */}
         <div className="print-only" style={{ justifyContent: "space-between", marginTop: "60px", padding: "0 50px", pageBreakInside: "avoid" }}>
