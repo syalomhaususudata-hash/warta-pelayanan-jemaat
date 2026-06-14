@@ -13,8 +13,14 @@ const namaHari = (tgl) => {
 };
 
 export const buatPPTWarta = ({
-  tanggalTerpilih, profilGereja, mingguIni, mingguDepan,
-  jadwalRayonSepekan, jadwalKategorialSepekan, fileKeuangan, wartaLain
+  tanggalTerpilih, 
+  profilGereja = {}, 
+  mingguIni = null, 
+  mingguDepan = null,
+  jadwalRayonSepekan = [],       // Tambahkan default array kosong
+  jadwalKategorialSepekan = [],  // Tambahkan default array kosong
+  fileKeuangan = [],
+  wartaLain = {}
 }) => {
   let pres = new pptxgen();
   const warnaUtama = "0A2540";

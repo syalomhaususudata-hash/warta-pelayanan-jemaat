@@ -254,7 +254,9 @@ return (
         harianSnap.docs.forEach(d => {
           const data = d.data();
           if (data.tanggal) {
-            const key = `${data.tanggal}-${data.namaUnit}-${data.tempatKeluarga}`;
+            // Gunakan d.id (ID unik Firestore) sebagai kunci tambahan 
+            // agar jadwal yang mirip tidak saling membatalkan/menimpa di memori HP.
+            const key = `${data.tanggal}-${data.namaUnit}-${data.tempatKeluarga}-${d.id}`;
             if (!mapHarian.has(key)) mapHarian.set(key, { id: d.id, ...data });
           }
         });
@@ -587,27 +589,26 @@ return (
       jadwalRayonSepekan = harianSepekan
         .filter(j => j.kategoriPelayanan === "Rayon")
         .sort((a, b) => {
-          // 1. Urutkan berdasarkan Nama Rayon terlebih dahulu
           const urutRayon = (a.namaUnit || "").localeCompare(b.namaUnit || "", undefined, { numeric: true, sensitivity: 'base' });
           if (urutRayon !== 0) return urutRayon;
-          // 2. Jika Rayon-nya sama, urutkan berdasarkan Tanggal terkecil ke terbesar (Rabu lalu Jumat)
-          return new Date(a.tanggal) - new Date(b.tanggal);
+          
+          // Menggunakan localeCompare untuk tanggal (format YYYY-MM-DD aman diurutkan sebagai string)
+          // Ini mencegah error "Invalid Date / NaN" di browser iOS/Android
+          return (a.tanggal || "").localeCompare(b.tanggal || ""); 
         });
       
       jadwalKategorialSepekan = harianSepekan
         .filter(j => j.kategoriPelayanan === "Kategorial")
         .sort((a, b) => {
-          // 1. Urutkan berdasarkan Bobot Kategori Induk
           const bobotA = getBobotKategori(a.namaKategoriInduk);
           const bobotB = getBobotKategori(b.namaKategoriInduk);
           if (bobotA !== bobotB) return bobotA - bobotB;
           
-          // 2. Urutkan berdasarkan Nama Sektor
           const urutSektor = (a.namaUnit || "").localeCompare(b.namaUnit || "", undefined, { numeric: true, sensitivity: 'base' });
           if (urutSektor !== 0) return urutSektor;
 
-          // 3. Jika Sektor-nya sama, urutkan berdasarkan Tanggal terkecil ke terbesar
-          return new Date(a.tanggal) - new Date(b.tanggal);
+          // Menggunakan localeCompare alih-alih manipulasi matematika new Date()
+          return (a.tanggal || "").localeCompare(b.tanggal || "");
         });
     }
   }
