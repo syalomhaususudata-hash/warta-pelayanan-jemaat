@@ -226,6 +226,67 @@ export default function JadwalMinggu() {
   const currentJadwalMinggu = jadwalMinggu.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(jadwalMinggu.length / itemsPerPage);
 
+// =========================================================================
+  // FITUR BARU: DOWNLOAD TEMPLATE & IMPORT JSON (KHUSUS SEKRETARIS)
+  // =========================================================================
+  
+  // MOCKUP ROLE: Ganti variabel ini dengan state otentikasi dari Firebase Auth/Context Anda
+  const userRole = "sekretaris"; 
+
+  const handleDownloadTemplate = () => {
+    // 1. Ubah .join(",") menjadi .join(";") agar sesuai dengan Excel Indonesia
+    const header = strukturKolomMinggu.map(k => k.label).join(";");
+    
+    // 2. Ubah pemisah data contoh menggunakan titik koma (;)
+    const contohData = "2026-06-07;Minggu Biasa I;Kejadian 1:1-5;Mazmur 8;Allah Sang Pencipta;Hijau;Bebas Rapi;PS Gabungan;Pdt. Abraham;Pnt. Budi;Dkn. Cici;Pnt. Dodi;Sdr. Elia;Rayon 1";
+    
+    // 3. Tambahkan \uFEFF di awal string agar Excel membacanya dengan format yang tepat
+    const csvContent = `\uFEFF${header}\n${contohData}`;
+
+    // Menghasilkan file CSV
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", "Template_Jadwal_Minggu.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleUploadJSON = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const parsedData = JSON.parse(event.target.result);
+        if (!Array.isArray(parsedData)) throw new Error("Format JSON harus Array.");
+
+        // Memastikan minimal ada field tanggal sebelum diproses
+        const dataValid = parsedData.filter(item => item.tanggal);
+
+        if (dataValid.length === 0) {
+          alert("Tidak ada data valid dengan kolom 'tanggal' di dalam file JSON.");
+          return;
+        }
+
+        // Konfirmasi sebelum trigger fungsi simpan database Anda yang sudah ada
+        if (window.confirm(`Berhasil membaca ${dataValid.length} baris jadwal dari file JSON.\n\nSimpan otomatis ke database Arsip Tahun ${tahunAktif}?`)) {
+          await handleSimpanKeDatabase(dataValid);
+        }
+      } catch (error) {
+        console.error("Error parsing JSON:", error);
+        alert("Gagal membaca file JSON. Pastikan format strukturnya benar.");
+      } finally {
+        // Reset input file agar file yang sama bisa diunggah ulang jika diperlukan
+        e.target.value = null; 
+      }
+    };
+    reader.readAsText(file);
+  };
+
   return (
     <div style={{ fontFamily: "Arial", maxWidth: "1200px", margin: "0 auto", padding: "20px" }}>
       
@@ -250,6 +311,24 @@ export default function JadwalMinggu() {
               <option value="2030">2030</option>
             </select>
           </div>
+
+          {/* RENDER BERSYARAT HANYA UNTUK SEKRETARIS */}
+          {userRole === "sekretaris" && (
+             <div style={{ display: "flex", gap: "10px" }}>
+                <button 
+                  onClick={handleDownloadTemplate} 
+                  style={{ padding: "10px 15px", backgroundColor: "#6c757d", color: "white", border: "none", borderRadius: "5px", cursor: "pointer", fontWeight: "bold" }}
+                  title="Unduh file CSV untuk diisi di Excel"
+                >
+                  Unduh Template Excel
+                </button>
+                
+                <label style={{ padding: "10px 15px", backgroundColor: "#28a745", color: "white", borderRadius: "5px", cursor: "pointer", fontWeight: "bold", display: "inline-block" }}>
+                  Import Jadwal JSON
+                  <input type="file" accept=".json" onChange={handleUploadJSON} style={{ display: "none" }} />
+                </label>
+             </div>
+          )}
 
           <button onClick={() => { resetForm(); setShowModalAdd(true); }} style={{ padding: "10px 20px", backgroundColor: "#007BFF", color: "white", border: "none", borderRadius: "5px", cursor: "pointer", fontWeight: "bold" }}>+ Tambah Manual</button>
         </div>
