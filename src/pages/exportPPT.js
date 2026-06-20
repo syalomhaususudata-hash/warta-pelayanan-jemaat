@@ -20,7 +20,8 @@ export const buatPPTWarta = ({
   jadwalRayonSepekan = [],       // Tambahkan default array kosong
   jadwalKategorialSepekan = [],  // Tambahkan default array kosong
   fileKeuangan = [],
-  wartaLain = {}
+  wartaLain = {},
+  kataSambutan = "" // <--- TAMBAHKAN BARIS INI
 }) => {
   let pres = new pptxgen();
   const warnaUtama = "0A2540";
@@ -63,6 +64,30 @@ export const buatPPTWarta = ({
   let masaRayaTeks = mingguIni?.masa_raya ? mingguIni.masa_raya : "Kebaktian Minggu";
   slideJudul.addText(masaRayaTeks.toUpperCase(), { x: 0.5, y: 3.0, w: "90%", fontSize: 24, bold: true, align: "center", color: "dc3545" });
   slideJudul.addText(`${formatTgl(tanggalTerpilih)}`, { x: 0.5, y: 3.6, w: "90%", fontSize: 22, align: "center", color: "666666" });
+
+// ==========================================
+  // SLIDE: KATA SAMBUTAN (1 ENTER = 1 SLIDE)
+  // ==========================================
+  if (kataSambutan) {
+    // Memisahkan teks berdasarkan baris baru (Enter), buang baris kosong
+    const arraySambutan = kataSambutan.split('\n').filter(teks => teks.trim() !== '');
+
+    arraySambutan.forEach((poinTeks) => {
+        let slideSambutan = pres.addSlide();
+        
+        // Header Slide
+        slideSambutan.addText("KATA SAMBUTAN", {
+            x: 0.5, y: 0.5, w: "90%", h: 0.8,
+            fontSize: 36, bold: true, color: warnaUtama, align: "center"
+        });
+
+        // Teks Poin
+        slideSambutan.addText(poinTeks.trim(), {
+            x: 0.5, y: 1.8, w: "90%", h: 3.5,
+            fontSize: 28, color: "333333", align: "center", valign: "middle", wrap: true
+        });
+    });
+  }
 
   // ==========================================
   // SLIDE MINGGU INI (DIPECAH 3 BAGIAN)

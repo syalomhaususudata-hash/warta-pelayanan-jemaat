@@ -80,8 +80,27 @@ export default function Dashboard() {
   };
   const [wartaLain, setWartaLain] = useState(stateWartaAwal);
   const [isEditingWarta, setIsEditingWarta] = useState(false);
+  
+  // --- KODE BARU: STATE KHUSUS KATA SAMBUTAN DI TAB 1 ---
+  const [kataSambutan, setKataSambutan] = useState("");
+  const [isEditingSambutan, setIsEditingSambutan] = useState(false);
 
-  // FUNGSI RENDER TABEL EXCEL KHUSUS ULANG TAHUN
+  // Fungsi menyimpan kata sambutan ke Firebase
+  // FUNGSI BARU: Simpan secara global untuk semua minggu
+  const simpanKataSambutan = async () => {
+    try {
+      // Menyimpan ke dokumen tetap "kata_sambutan_global" di koleksi "konfigurasi"
+      await setDoc(doc(db, "konfigurasi", "kata_sambutan_global"), {
+        teks: kataSambutan
+      });
+      setIsEditingSambutan(false);
+      alert("Kata Sambutan berhasil disimpan sebagai default untuk semua minggu!");
+    } catch (e) {
+      console.error(e);
+      alert("Gagal menyimpan Kata Sambutan.");
+    }
+  };
+
   // FUNGSI RENDER TABEL EXCEL KHUSUS ULANG TAHUN (DENGAN HITUNG USIA OTOMATIS)
   const renderTabelExcel = (text) => {
     if (!text) return null;
@@ -241,10 +260,11 @@ return (
   useEffect(() => {
     const ambilData = async () => {
       try {
-        const [mingguSnap, harianSnap, masterSnap] = await Promise.all([
+        const [mingguSnap, harianSnap, masterSnap, sambutanSnap] = await Promise.all([
           getDocs(collection(db, "jadwal_minggu")),
           getDocs(collection(db, "jadwal_pelayanan")),
-          getDoc(doc(db, "konfigurasi", "master_data"))
+          getDoc(doc(db, "konfigurasi", "master_data")),
+          getDoc(doc(db, "konfigurasi", "kata_sambutan_global")) // <--- TAMBAHAN BARU
         ]);
         
         const dataMinggu = mingguSnap.docs.map(d => ({ id: d.id, ...d.data() 
@@ -278,6 +298,13 @@ return (
         }
 
         if (masterSnap.exists()) {
+          // --- LOGIKA SETTING KATA SAMBUTAN GLOBAL ---
+        if (sambutanSnap.exists()) {
+          setKataSambutan(sambutanSnap.data().teks || "");
+        } else {
+          // Jika belum ada data sama sekali di database, gunakan default bawaan ini
+          setKataSambutan(`1. Atas nama Majelis Jemaat GMIT Koa 1 - Mata Jemaat Syalom Haususu, mengucapkan selamat datang & selamat beribadah kepada seluruh Jemaat yang telah hadir di ibadah saat ini, kiranya ibadah membawa berkat, sukacita & damai sejahtera bagi kita.\n2. Diucapkan selamat datang dan selamat beribadah bagi jemaat tamu yang telah hadir pada ibadah saat ini, berkat dan anugerah kiranya selalu mengawali dan menyertai kita sekalian.`);
+        }
           const data = masterSnap.data();
           if (data.profilGereja) {
             setProfilGereja({
@@ -626,7 +653,8 @@ return (
        jadwalRayonSepekan,
        jadwalKategorialSepekan,
        fileKeuangan,
-       wartaLain
+       wartaLain,
+       kataSambutan // <--- TAMBAHKAN BARIS INI
      });
    };
    // --- AKHIR FUNGSI PPT ---
@@ -968,14 +996,39 @@ return (
 </div>
 {/* ======== SELESAI KOP SURAT ======== */}
 
-          {/* ======== KATA SAMBUTAN (PINDAH KE DALAM TAB 1) ======== */}
-          <div style={{ marginTop: "20px", marginBottom: "35px", fontSize: "15px", lineHeight: "1.6", textAlign: "justify", fontFamily: "'Times New Roman', Times, serif", color: "black" }}>
-            <ol style={{ margin: 0, paddingLeft: "25px" }}>
-              <li style={{ marginBottom: "10px" }}>Atas nama Majelis Jemaat GMIT {profilGereja.namaJemaat} - Mata Jemaat {profilGereja.namaMataJemaat}, mengucapkan selamat datang & selamat beribadah kepada seluruh Jemaat yang telah hadir di ibadah saat ini, kiranya ibadah membawa berkat, sukacita & damai sejahtera bagi kita.</li>
-              <li>Diucapkan selamat datang dan selamat beribadah bagi jemaat tamu yang telah hadir pada ibadah saat ini, berkat dan anugerah kiranya selalu mengawali dan menyertai kita sekalian.</li>
-            </ol>
+          {/* ======== KATA SAMBUTAN (TAB 1) ======== */}
+          <div style={{ marginTop: "20px", marginBottom: "35px", fontFamily: "'Times New Roman', Times, serif", color: "black" }}>
+            
+            {/* Tombol Edit Khusus Sekretaris */}
+            {apakahSekretaris && (
+              <div className="no-print" style={{ textAlign: "right", marginBottom: "10px", backgroundColor: "#e2e3e5", padding: "10px", borderRadius: "5px" }}>
+                <span style={{ marginRight: "15px", fontWeight: "bold", color: "#383d41" }}>🛠️ Akses Admin: Kata Sambutan</span>
+                {isEditingSambutan ? (
+                  <button onClick={simpanKataSambutan} style={{ padding: "6px 15px", backgroundColor: "#28a745", color: "white", border: "none", borderRadius: "5px", cursor: "pointer", fontWeight: "bold" }}>💾 Simpan Sambutan</button>
+                ) : (
+                  <button onClick={() => setIsEditingSambutan(true)} style={{ padding: "6px 15px", backgroundColor: "#007BFF", color: "white", border: "none", borderRadius: "5px", cursor: "pointer", fontWeight: "bold" }}>✏️ Edit Sambutan</button>
+                )}
+              </div>
+            )}
+
+            {/* Kotak Edit vs Tampilan Teks */}
+            {isEditingSambutan && apakahSekretaris ? (
+              <textarea
+                className="no-print"
+                value={kataSambutan}
+                placeholder="Ketik kata sambutan di sini... (Tekan Enter untuk memisahkan poin menjadi slide PPT yang berbeda)"
+                onChange={(e) => setKataSambutan(e.target.value)}
+                style={{ width: "100%", minHeight: "120px", padding: "12px", borderRadius: "8px", border: "1px solid #007BFF", fontFamily: "Arial", fontSize: "14px", lineHeight: "1.5" }}
+              />
+            ) : (
+              <div style={{ fontSize: "15px", lineHeight: "1.6", textAlign: "justify", whiteSpace: "pre-wrap" }}>
+                {kataSambutan || <span style={{color: "gray", fontStyle: "italic"}}>Belum ada kata sambutan untuk minggu ini.</span>}
+              </div>
+            )}
+
           </div>
           {/* ======== SELESAI KATA SAMBUTAN ======== */}
+
           {!loading && semuaJadwalMinggu.length > 0 && (
             <div className="wadah-tabel-print" style={{ border: "1px solid #e0e0e0", padding: "25px", borderRadius: "10px", backgroundColor: "white", marginBottom: "30px" }}>
               
