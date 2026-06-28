@@ -79,7 +79,10 @@ export default function Dashboard() {
     bacaanHarian: "" // TAMBAHAN: Menyimpan text raw dari Copy-Paste Excel
   };
   const [wartaLain, setWartaLain] = useState(stateWartaAwal);
+  const [sapaanWartaLain, setSapaanWartaLain] = useState("");
   const [isEditingWarta, setIsEditingWarta] = useState(false);
+  // STATE BARU: Untuk mengontrol pop-up per kategori
+  const [kategoriWartaAktif, setKategoriWartaAktif] = useState(null);
   
   // --- KODE BARU: STATE KHUSUS KATA SAMBUTAN DI TAB 1 ---
   const [kataSambutan, setKataSambutan] = useState("");
@@ -260,11 +263,12 @@ return (
   useEffect(() => {
     const ambilData = async () => {
       try {
-        const [mingguSnap, harianSnap, masterSnap, sambutanSnap] = await Promise.all([
+        const [mingguSnap, harianSnap, masterSnap, sambutanSnap, sapaanWartaSnap] = await Promise.all([
           getDocs(collection(db, "jadwal_minggu")),
           getDocs(collection(db, "jadwal_pelayanan")),
           getDoc(doc(db, "konfigurasi", "master_data")),
-          getDoc(doc(db, "konfigurasi", "kata_sambutan_global")) // <--- TAMBAHAN BARU
+          getDoc(doc(db, "konfigurasi", "kata_sambutan_global")),
+          getDoc(doc(db, "konfigurasi", "sapaan_warta_lain")) // KODE BARU SAPAAN GLOBAL
         ]);
         
         const dataMinggu = mingguSnap.docs.map(d => ({ id: d.id, ...d.data() 
@@ -303,7 +307,12 @@ return (
           setKataSambutan(sambutanSnap.data().teks || "");
         } else {
           // Jika belum ada data sama sekali di database, gunakan default bawaan ini
-          setKataSambutan(`1. Atas nama Majelis Jemaat GMIT Koa 1 - Mata Jemaat Syalom Haususu, mengucapkan selamat datang & selamat beribadah kepada seluruh Jemaat yang telah hadir di ibadah saat ini, kiranya ibadah membawa berkat, sukacita & damai sejahtera bagi kita.\n2. Diucapkan selamat datang dan selamat beribadah bagi jemaat tamu yang telah hadir pada ibadah saat ini, berkat dan anugerah kiranya selalu mengawali dan menyertai kita sekalian.`);
+          setKataSambutan(`1. Atas nama Majelis Jemaat GMIT Koa 1 - Mata Jemaat Syalom Haususu...`);
+        }
+        
+        // --- KODE BARU: LOGIKA SETTING SAPAAN WARTA LAIN-LAIN GLOBAL ---
+        if (sapaanWartaSnap.exists()) {
+          setSapaanWartaLain(sapaanWartaSnap.data().teks || "");
         }
           const data = masterSnap.data();
           if (data.profilGereja) {
@@ -372,19 +381,23 @@ return (
   }, [tanggalTerpilih]);
 
   const simpanWartaLain = async () => {
-    if (!tanggalTerpilih) return;
-    try {
+  if (!tanggalTerpilih) return;
+  try {
       await setDoc(doc(db, "warta_lainnya_teks", tanggalTerpilih), {
         warta: wartaLain,
         tanggal: tanggalTerpilih
       });
-      setIsEditingWarta(false);
-      alert("Warta Lain-lain berhasil disimpan!");
-    } catch (e) {
-      console.error(e);
-      alert("Gagal menyimpan warta.");
-    }
-  };
+      await setDoc(doc(db, "konfigurasi", "sapaan_warta_lain"), {
+        teks: sapaanWartaLain
+      });
+      setIsEditingWarta(false); // Menutup form tab lain (Bacaan)
+      setKategoriWartaAktif(null); // Menutup Pop-up Warta per Kategori
+      alert("Data berhasil disimpan!");
+  } catch (e) {
+    console.error(e);
+    alert("Gagal menyimpan warta.");
+  }
+};
 
 // --- FUNGSI BARU: UPLOAD INSTAN UNTUK WARTA PERNIKAHAN & KEMATIAN ---
   const handleUploadGambarWarta = async (e, kategori, index) => {
@@ -562,19 +575,27 @@ return (
     borderRadius: "10px 10px 0 0", flex: "1 1 auto", textAlign: "center", fontSize: "15px"
   });
 
+  // Fungsi Helper Manual JavaScript
+  const namaHariManual = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+  const namaBulanManual = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+
   const formatTgl = (tgl) => {
     if (!tgl) return "-";
     const d = new Date(tgl + "T00:00:00");
-    return isNaN(d) ? tgl : d.toLocaleDateString("id-ID", { day: '2-digit', month: 'long', year: 'numeric' });
+    if (isNaN(d)) return tgl;
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = namaBulanManual[d.getMonth()];
+    const year = d.getFullYear();
+    return `${day} ${month} ${year}`;
   };
 
   const formatTanggalDropdown = (tgl) => {
     if (!tgl) return "-";
     const d = new Date(tgl + "T00:00:00");
     if (isNaN(d)) return tgl;
-    const hari = d.toLocaleDateString("id-ID", { weekday: 'long' });
+    const hari = namaHariManual[d.getDay()];
     const day = String(d.getDate()).padStart(2, '0');
-    const month = d.toLocaleDateString("id-ID", { month: 'long' });
+    const month = namaBulanManual[d.getMonth()];
     const year = d.getFullYear();
     return `${hari}, ${day}-${month}-${year}`;
   };
@@ -582,7 +603,8 @@ return (
   const namaHari = (tgl) => {
     if (!tgl) return "-";
     const d = new Date(tgl + "T00:00:00");
-    return isNaN(d) ? "" : d.toLocaleDateString("id-ID", { weekday: 'long' });
+    if (isNaN(d)) return "";
+    return namaHariManual[d.getDay()];
   };
 
   const getBobotKategori = (namaKategori) => {
@@ -799,7 +821,18 @@ return (
             max-width: 100% !important;
             border-collapse: collapse !important; 
             table-layout: auto !important; 
-            margin-bottom: 5px !important; /* Jarak bawah tabel dikurangi */
+            margin-bottom: 5px !important;
+          } 
+
+          /* KODE BARU: MENCEGAH ELEMEN TERBELAH DUA SAAT CETAK */
+          tr, td, th {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+          
+          .card-mobile > div, .gambar-wrapper-cetak, p {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
           } 
           
           /* Targetkan semua sel tabel secara brutal */
@@ -893,37 +926,55 @@ return (
       `}} />
 
       <div className="no-print" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", backgroundColor: "#f8f9fa", padding: "20px", borderRadius: "10px", border: "1px solid #e9ecef", flexWrap: "wrap", gap: "15px" }}>
-        <div>
+        
+        {/* Sisi Kiri: Judul */}
+        <div style={{ minWidth: "250px" }}>
           <h3 style={{ margin: "0 0 5px 0", color: "#0A2540" }}>Sistem Warta Jemaat</h3>
           <p style={{ margin: 0, fontSize: "14px", color: "gray" }}>Pilih tahun dan tanggal untuk melihat jadwal pelayanan dan arsip.</p>
         </div>
         
-        <div style={{ flex: "1 1 auto", minWidth: "250px", display: "flex", flexWrap: "wrap", gap: "10px", alignItems: "center" }}>
+        {/* Sisi Kanan: Kontrol (Dibuat ukurannya fix agar tidak mendorong elemen lain) */}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", alignItems: "center" }}>
           <label style={{ fontWeight: "bold", color: "#444" }}>Pilih Tanggal Acuan:</label>
+          
           {semuaJadwalMinggu.length > 0 ? (
-            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", flex: 1 }}>
-              {/* 1. FILTER TAHUN DINAMIS */}
+            <div style={{ display: "flex", gap: "10px", flexWrap: "nowrap" }}>
+              
+              {/* 1. FILTER TAHUN (Diatur fix 130px) */}
               <select 
                 value={tanggalTerpilih ? new Date(tanggalTerpilih).getFullYear() : new Date().getFullYear()} 
                 onChange={(e) => {
                    const tahunPilihan = e.target.value;
-                   // Cari jadwal/tanggal pertama yang tersedia di tahun yang dipilih
                    const opsiTahun = semuaJadwalMinggu.find(j => new Date(j.tanggal).getFullYear().toString() === tahunPilihan);
                    if (opsiTahun) setTanggalTerpilih(opsiTahun.tanggal);
                 }}
-                style={{ padding: "10px", borderRadius: "6px", border: "1px solid #00acc1", fontWeight: "bold", cursor: "pointer", backgroundColor: "#e0f7fa", color: "#006064" }}
+                className="select-mobile-safe"
+                style={{ width: "130px", padding: "10px", borderRadius: "6px", border: "1px solid #00acc1", fontWeight: "bold", cursor: "pointer", backgroundColor: "#e0f7fa", color: "#006064", WebkitAppearance: "none", MozAppearance: "none", appearance: "none" }}
               >
                 {[...new Set(semuaJadwalMinggu.map(j => new Date(j.tanggal).getFullYear()))].map(thn => (
                   <option key={thn} value={thn}>Tahun {thn}</option>
                 ))}
               </select>
 
-              {/* 2. FILTER TANGGAL (MENYESUAIKAN TAHUN) */}
+              {/* 2. FILTER TANGGAL (Diatur fix 260px) */}
               <select 
-                value={tanggalTerpilih} 
-                onChange={(e) => setTanggalTerpilih(e.target.value)}
-                style={{ padding: "10px", borderRadius: "6px", border: "1px solid #ccc", flex: 1, minWidth: "200px", maxWidth: "300px", fontWeight: "bold", cursor: "pointer", backgroundColor: "white" }}
-              >
+  value={tanggalTerpilih} 
+  onChange={(e) => setTanggalTerpilih(e.target.value)}
+  style={{ 
+    padding: "10px", 
+    borderRadius: "6px", 
+    border: "1px solid #ccc", 
+    flex: 1, 
+    minWidth: "150px", // Memastikan tidak terlalu lebar di awal
+    width: "100%",     // Memaksa mengikuti kontainer induk
+    fontWeight: "bold", 
+    cursor: "pointer", 
+    backgroundColor: "white",
+    fontSize: "14px",   // Ukuran font pas untuk HP
+    textOverflow: "ellipsis", // Agar teks panjang tidak merusak layout
+    whiteSpace: "nowrap" 
+  }}
+>
                 {semuaJadwalMinggu
                   .filter(j => new Date(j.tanggal).getFullYear() === (tanggalTerpilih ? new Date(tanggalTerpilih).getFullYear() : new Date().getFullYear()))
                   .map(j => (
@@ -963,7 +1014,7 @@ return (
         </div>
       </div>
 
-      <div style={{ backgroundColor: "white", padding: "30px", borderRadius: "0 0 10px 10px", boxShadow: "0 5px 15px rgba(0,0,0,0.08)", border: "1px solid #ddd", borderTop: "none" }}>
+      <div style={{ backgroundColor: "white", padding: "30px", borderRadius: "0 0 10px 10px", boxShadow: "0 5px 15px rgba(0,0,0,0.08)", border: "1px solid #ddd", borderTop: "none", minHeight: "60vh" }}>
         
         {/* TAB 1: INFORMASI PELAYANAN */}
         <div className={`print-section ${tabAktif === "minggu" ? "screen-block" : "screen-none"}`}>
@@ -1383,171 +1434,197 @@ return (
         <div className={`print-section ${tabAktif === "lainnya" ? "screen-block" : "screen-none"}`}>
           <h2 className="print-only" style={{ textAlign: "center", borderBottom: "2px solid #eee", paddingBottom: "10px", color: "black", marginTop: "20px" }}>Warta Lain-lain</h2>
           
-          {/* TOMBOL EDIT HANYA MUNCUL JIKA USER ADALAH SEKRETARIS */}
+          {/* MENU ADMIN: TOMBOL EDIT SATU PER SATU */}
           {apakahSekretaris && (
-            <div className="no-print" style={{ textAlign: "right", marginBottom: "15px", backgroundColor: "#fff3cd", padding: "10px", borderRadius: "5px", border: "1px solid #ffeeba" }}>
-              <span style={{ marginRight: "15px", fontWeight: "bold", color: "#856404" }}>🔒 Akses Admin Warta</span>
-              {isEditingWarta ? (
-                <button onClick={simpanWartaLain} style={{ padding: "8px 20px", backgroundColor: "#28a745", color: "white", border: "none", borderRadius: "5px", cursor: "pointer", fontWeight: "bold" }}>💾 Simpan Perubahan</button>
-              ) : (
-                <button onClick={() => setIsEditingWarta(true)} style={{ padding: "8px 20px", backgroundColor: "#007BFF", color: "white", border: "none", borderRadius: "5px", cursor: "pointer", fontWeight: "bold" }}>✏️ Edit Warta Kategori</button>
-              )}
+            <div className="no-print" style={{ marginBottom: "20px", backgroundColor: "#fff3cd", padding: "15px", borderRadius: "8px", border: "1px solid #ffeeba" }}>
+              <div style={{ fontWeight: "bold", color: "#856404", marginBottom: "10px" }}>⚙️ Akses Admin: Pilih Kategori Warta untuk Diedit</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                <button onClick={() => setKategoriWartaAktif("sapaan")} style={{ padding: "8px 12px", backgroundColor: "#007BFF", color: "white", border: "none", borderRadius: "5px", cursor: "pointer", fontWeight: "bold", fontSize: "13px", flex: "1 1 auto" }}>Sapaan</button>
+                <button onClick={() => setKategoriWartaAktif("ulangTahun")} style={{ padding: "8px 12px", backgroundColor: "#007BFF", color: "white", border: "none", borderRadius: "5px", cursor: "pointer", fontWeight: "bold", fontSize: "13px", flex: "1 1 auto" }}>Ulang Tahun</button>
+                <button onClick={() => setKategoriWartaAktif("baptisan")} style={{ padding: "8px 12px", backgroundColor: "#007BFF", color: "white", border: "none", borderRadius: "5px", cursor: "pointer", fontWeight: "bold", fontSize: "13px", flex: "1 1 auto" }}>Baptisan</button>
+                <button onClick={() => setKategoriWartaAktif("pernikahan")} style={{ padding: "8px 12px", backgroundColor: "#17a2b8", color: "white", border: "none", borderRadius: "5px", cursor: "pointer", fontWeight: "bold", fontSize: "13px", flex: "1 1 auto" }}>Pernikahan</button>
+                <button onClick={() => setKategoriWartaAktif("kematian")} style={{ padding: "8px 12px", backgroundColor: "#dc3545", color: "white", border: "none", borderRadius: "5px", cursor: "pointer", fontWeight: "bold", fontSize: "13px", flex: "1 1 auto" }}>Kematian</button>
+                <button onClick={() => setKategoriWartaAktif("pembangunan")} style={{ padding: "8px 12px", backgroundColor: "#6c757d", color: "white", border: "none", borderRadius: "5px", cursor: "pointer", fontWeight: "bold", fontSize: "13px", flex: "1 1 auto" }}>Pembangunan</button>
+                <button onClick={() => setKategoriWartaAktif("informasiLain")} style={{ padding: "8px 12px", backgroundColor: "#6c757d", color: "white", border: "none", borderRadius: "5px", cursor: "pointer", fontWeight: "bold", fontSize: "13px", flex: "1 1 auto" }}>Info Lain</button>
+              </div>
             </div>
           )}
 
-          {isEditingWarta ? (
-            <div className="no-print" style={{ display: "flex", flexDirection: "column", gap: "15px", backgroundColor: "#f8f9fa", padding: "20px", borderRadius: "8px", border: "1px solid #ddd" }}>
+          {/* POP-UP MODAL SATUAN (Anti Geser Kiri-Kanan) */}
+          {kategoriWartaAktif && (
+            <div className="no-print modal-overlay" style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.7)", zIndex: 9999, display: "flex", justifyContent: "center", alignItems: "center", boxSizing: "border-box" }}>
               
-              <div><label style={{fontWeight: "bold"}}>1. Sapaan</label>
-              <textarea value={wartaLain.sapaan} onChange={(e) => setWartaLain({...wartaLain, sapaan: e.target.value})} style={{width: "100%", height: "80px", padding: "10px", borderRadius: "5px", border: "1px solid #ccc"}} /></div>
+              {/* PERBAIKAN: width diubah jadi 95% agar tidak menabrak pinggiran layar HP */}
+              <div className="modal-content" style={{ backgroundColor: "#f8f9fa", width: "95%", maxWidth: "450px", maxHeight: "90vh", overflowY: "auto", padding: "20px", borderRadius: "12px", border: "1px solid #ddd", position: "relative", boxSizing: "border-box" }}>
+                
+                {/* Header Modal */}
+                <div style={{ position: "sticky", top: "-20px", backgroundColor: "#f8f9fa", padding: "10px 0", borderBottom: "2px solid #ddd", marginBottom: "15px", display: "flex", justifyContent: "space-between", alignItems: "center", zIndex: 10 }}>
+                  <h3 style={{ margin: 0, color: "#0A2540", fontSize: "16px", textTransform: "capitalize" }}>
+                    Edit {kategoriWartaAktif.replace(/([A-Z])/g, ' $1').trim()}
+                  </h3>
+                  <button onClick={simpanWartaLain} style={{ padding: "8px 15px", backgroundColor: "#28a745", color: "white", border: "none", borderRadius: "5px", fontWeight: "bold", cursor: "pointer", fontSize: "14px" }}>💾 Simpan</button>
+                </div>
 
-              <div><label style={{fontWeight: "bold"}}>2. Ucapan Selamat Ulang Tahun (Copy-Paste Excel Kolom Nama & Tgl)</label>
-              <textarea value={wartaLain.ulangTahun} onChange={(e) => setWartaLain({...wartaLain, ulangTahun: e.target.value})} placeholder="Paste dari excel di sini..." style={{width: "100%", height: "120px", padding: "10px", borderRadius: "5px", border: "1px solid #ccc"}} /></div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "15px", boxSizing: "border-box" }}>
+                  
+                  {kategoriWartaAktif === "sapaan" && (
+                    <div style={{ width: "100%" }}>
+                      <label style={{fontWeight: "bold", fontSize: "14px"}}>Teks Sapaan (Global)</label>
+                      {/* PERBAIKAN: Kotak diperbesar jadi 250px */}
+                      <textarea value={sapaanWartaLain} onChange={(e) => setSapaanWartaLain(e.target.value)} style={{width: "100%", height: "250px", padding: "10px", borderRadius: "5px", border: "1px solid #ccc", boxSizing: "border-box", marginTop: "5px", fontFamily: "inherit"}} />
+                    </div>
+                  )}
 
-              <div><label style={{fontWeight: "bold"}}>3. Warta Baptisan</label>
-              <textarea value={wartaLain.baptisan} onChange={(e) => setWartaLain({...wartaLain, baptisan: e.target.value})} style={{width: "100%", height: "80px", padding: "10px", borderRadius: "5px", border: "1px solid #ccc"}} /></div>
+                  {kategoriWartaAktif === "ulangTahun" && (
+                    <div style={{ width: "100%" }}>
+                      <label style={{fontWeight: "bold", fontSize: "14px"}}>Copy-Paste Kolom Nama & Tanggal dari Excel</label>
+                      <textarea value={wartaLain.ulangTahun} onChange={(e) => setWartaLain({...wartaLain, ulangTahun: e.target.value})} placeholder="Paste di sini..." style={{width: "100%", height: "250px", padding: "10px", borderRadius: "5px", border: "1px solid #ccc", boxSizing: "border-box", marginTop: "5px", fontFamily: "inherit"}} />
+                    </div>
+                  )}
 
-              {/* --- DYNAMIC INPUT PERNIKAHAN --- */}
-              <div style={{ border: "1px solid #bee5eb", padding: "15px", borderRadius: "5px", backgroundColor: "#e0f7fa" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
-                  <label style={{fontWeight: "bold", fontSize: "16px"}}>4. Warta Pernikahan</label>
-                  <button onClick={() => setWartaLain({...wartaLain, pernikahan: [...wartaLain.pernikahan, {teks: "", gambarUrl: ""}]})} style={{ padding: "5px 10px", backgroundColor: "#17a2b8", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", fontSize: "12px" }}>+ Tambah Pasangan</button>
+                  {kategoriWartaAktif === "baptisan" && (
+                    <div style={{ width: "100%" }}>
+                      <label style={{fontWeight: "bold", fontSize: "14px"}}>Teks Warta Baptisan</label>
+                      {/* PERBAIKAN: Kotak diperbesar jadi 250px */}
+                      <textarea value={wartaLain.baptisan} onChange={(e) => setWartaLain({...wartaLain, baptisan: e.target.value})} style={{width: "100%", height: "250px", padding: "10px", borderRadius: "5px", border: "1px solid #ccc", boxSizing: "border-box", marginTop: "5px", fontFamily: "inherit"}} />
+                    </div>
+                  )}
+
+                  {kategoriWartaAktif === "pernikahan" && (
+                    <div style={{ width: "100%" }}>
+                      <button onClick={() => setWartaLain({...wartaLain, pernikahan: [...wartaLain.pernikahan, {teks: "", gambarUrl: ""}]})} style={{ width: "100%", padding: "12px", backgroundColor: "#17a2b8", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", marginBottom: "15px" }}>+ Tambah Pasangan Baru</button>
+                      
+                      {wartaLain.pernikahan.map((item, index) => (
+                        <div key={index} style={{ marginBottom: "15px", padding: "15px", backgroundColor: "#e0f7fa", borderRadius: "8px", border: "1px solid #b2ebf2", boxSizing: "border-box", width: "100%" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "10px" }}>
+                            <span style={{ fontWeight: "bold", color: "#00838f" }}>Pasangan #{index + 1}</span>
+                            {wartaLain.pernikahan.length > 1 && (
+                              <button onClick={() => {
+                                const newArr = [...wartaLain.pernikahan]; newArr.splice(index, 1);
+                                setWartaLain({...wartaLain, pernikahan: newArr});
+                              }} style={{ backgroundColor: "#dc3545", color: "white", border: "none", borderRadius: "4px", padding: "4px 10px", fontSize: "12px", cursor: "pointer" }}>Hapus</button>
+                            )}
+                          </div>
+                          
+                          <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "10px" }}>
+                            <label style={{ cursor: "pointer", backgroundColor: "#0A2540", color: "white", padding: "10px", borderRadius: "4px", textAlign: "center", fontWeight: "bold", fontSize: "13px" }}>
+                              📷 Upload Gambar
+                              <input type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => handleUploadGambarWarta(e, "pernikahan", index)} />
+                            </label>
+                            <input type="text" value={item.gambarUrl} onChange={(e) => {
+                              const newArr = [...wartaLain.pernikahan]; newArr[index].gambarUrl = e.target.value;
+                              setWartaLain({...wartaLain, pernikahan: newArr});
+                            }} placeholder="Atau paste URL Gambar..." style={{ width: "100%", padding: "10px", borderRadius: "4px", border: "1px solid #ccc", boxSizing: "border-box" }} disabled={item.gambarUrl === "Mengunggah..."} />
+                          </div>
+                          <textarea value={item.teks} onChange={(e) => {
+                            const newArr = [...wartaLain.pernikahan]; newArr[index].teks = e.target.value;
+                            setWartaLain({...wartaLain, pernikahan: newArr});
+                          }} placeholder="Ketik warta pernikahan..." style={{width: "100%", height: "120px", padding: "10px", borderRadius: "4px", border: "1px solid #ccc", boxSizing: "border-box", fontFamily: "inherit"}} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {kategoriWartaAktif === "kematian" && (
+                    <div style={{ width: "100%" }}>
+                      <button onClick={() => setWartaLain({...wartaLain, kematian: [...wartaLain.kematian, {teks: "", gambarUrl: ""}]})} style={{ width: "100%", padding: "12px", backgroundColor: "#dc3545", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", marginBottom: "15px" }}>+ Tambah Berita Duka</button>
+                      
+                      {wartaLain.kematian.map((item, index) => (
+                        <div key={index} style={{ marginBottom: "15px", padding: "15px", backgroundColor: "#f8d7da", borderRadius: "8px", border: "1px solid #f5c6cb", boxSizing: "border-box", width: "100%" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "10px" }}>
+                            <span style={{ fontWeight: "bold", color: "#c82333" }}>Almarhum/ah #{index + 1}</span>
+                            {wartaLain.kematian.length > 1 && (
+                              <button onClick={() => {
+                                const newArr = [...wartaLain.kematian]; newArr.splice(index, 1);
+                                setWartaLain({...wartaLain, kematian: newArr});
+                              }} style={{ backgroundColor: "#c82333", color: "white", border: "none", borderRadius: "4px", padding: "4px 10px", fontSize: "12px", cursor: "pointer" }}>Hapus</button>
+                            )}
+                          </div>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "10px" }}>
+                            <label style={{ cursor: "pointer", backgroundColor: "#0A2540", color: "white", padding: "10px", borderRadius: "4px", textAlign: "center", fontWeight: "bold", fontSize: "13px" }}>
+                              📷 Upload Gambar
+                              <input type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => handleUploadGambarWarta(e, "kematian", index)} />
+                            </label>
+                            <input type="text" value={item.gambarUrl} onChange={(e) => {
+                              const newArr = [...wartaLain.kematian]; newArr[index].gambarUrl = e.target.value;
+                              setWartaLain({...wartaLain, kematian: newArr});
+                            }} placeholder="Atau paste URL Gambar..." style={{ width: "100%", padding: "10px", borderRadius: "4px", border: "1px solid #ccc", boxSizing: "border-box" }} disabled={item.gambarUrl === "Mengunggah..."} />
+                          </div>
+                          <textarea value={item.teks} onChange={(e) => {
+                            const newArr = [...wartaLain.kematian]; newArr[index].teks = e.target.value;
+                            setWartaLain({...wartaLain, kematian: newArr});
+                          }} placeholder="Ketik warta duka..." style={{width: "100%", height: "120px", padding: "10px", borderRadius: "4px", border: "1px solid #ccc", boxSizing: "border-box", fontFamily: "inherit"}} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {kategoriWartaAktif === "pembangunan" && (
+                    <div style={{ width: "100%" }}>
+                      <label style={{fontWeight: "bold", fontSize: "14px"}}>Teks Informasi Pembangunan</label>
+                      {/* PERBAIKAN: Kotak diperbesar jadi 250px */}
+                      <textarea value={wartaLain.pembangunan} onChange={(e) => setWartaLain({...wartaLain, pembangunan: e.target.value})} style={{width: "100%", height: "250px", padding: "10px", borderRadius: "5px", border: "1px solid #ccc", boxSizing: "border-box", marginTop: "5px", fontFamily: "inherit"}} />
+                    </div>
+                  )}
+
+                  {kategoriWartaAktif === "informasiLain" && (
+                    <div style={{ width: "100%" }}>
+                      <label style={{fontWeight: "bold", fontSize: "14px"}}>Teks Informasi Lain-lain</label>
+                      {/* PERBAIKAN: Kotak diperbesar jadi 250px */}
+                      <textarea value={wartaLain.informasiLain} onChange={(e) => setWartaLain({...wartaLain, informasiLain: e.target.value})} style={{width: "100%", height: "250px", padding: "10px", borderRadius: "5px", border: "1px solid #ccc", boxSizing: "border-box", marginTop: "5px", fontFamily: "inherit"}} />
+                    </div>
+                  )}
+
                 </div>
                 
-                {wartaLain.pernikahan.map((item, index) => (
-                  <div key={index} style={{ marginBottom: "15px", paddingBottom: "15px", borderBottom: index !== wartaLain.pernikahan.length - 1 ? "1px dashed #b2ebf2" : "none" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px" }}>
-                      <span style={{ fontSize: "12px", fontWeight: "bold", color: "#00838f" }}>Pasangan #{index + 1}</span>
-                      {wartaLain.pernikahan.length > 1 && (
-                        <button onClick={() => {
-                          const newArr = [...wartaLain.pernikahan];
-                          newArr.splice(index, 1);
-                          setWartaLain({...wartaLain, pernikahan: newArr});
-                        }} style={{ backgroundColor: "#dc3545", color: "white", border: "none", borderRadius: "3px", padding: "2px 8px", fontSize: "11px", cursor: "pointer" }}>Hapus</button>
-                      )}
-                    </div>
-                    <div style={{ display: "flex", gap: "10px", marginBottom: "8px", alignItems: "center" }}>
-                      <label style={{ cursor: "pointer", backgroundColor: "#17a2b8", color: "white", padding: "8px 15px", borderRadius: "4px", fontWeight: "bold", fontSize: "12px", whiteSpace: "nowrap", margin: 0 }}>
-                        📷 Upload Gambar
-                        <input type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => handleUploadGambarWarta(e, "pernikahan", index)} />
-                      </label>
-                      <input type="text" value={item.gambarUrl} onChange={(e) => {
-                        const newArr = [...wartaLain.pernikahan];
-                        newArr[index].gambarUrl = e.target.value;
-                        setWartaLain({...wartaLain, pernikahan: newArr});
-                      }} placeholder="Atau paste Link Gambar di sini..." style={{ flex: "1", padding: "8px", borderRadius: "4px", border: "1px solid #ccc", backgroundColor: item.gambarUrl === "Mengunggah..." ? "#e9ecef" : "#fff", color: item.gambarUrl === "Mengunggah..." ? "#28a745" : "#000", fontWeight: item.gambarUrl === "Mengunggah..." ? "bold" : "normal" }} disabled={item.gambarUrl === "Mengunggah..."} />
-                    </div>
-                    <textarea value={item.teks} onChange={(e) => {
-                      const newArr = [...wartaLain.pernikahan];
-                      newArr[index].teks = e.target.value;
-                      setWartaLain({...wartaLain, pernikahan: newArr});
-                    }} placeholder="Teks Warta Pernikahan..." style={{width: "100%", height: "60px", padding: "8px", borderRadius: "4px", border: "1px solid #ccc"}} />
-                  </div>
-                ))}
+                {/* Tombol Tutup Tanpa Menyimpan */}
+                <button onClick={() => setKategoriWartaAktif(null)} style={{ width: "100%", marginTop: "20px", padding: "12px", backgroundColor: "#dc3545", color: "white", border: "none", borderRadius: "8px", fontWeight: "bold", cursor: "pointer", fontSize: "15px" }}>✖ Tutup</button>
               </div>
-
-              {/* --- DYNAMIC INPUT KEMATIAN --- */}
-              <div style={{ border: "1px solid #f5c6cb", padding: "15px", borderRadius: "5px", backgroundColor: "#f8d7da" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
-                  <label style={{fontWeight: "bold", fontSize: "16px"}}>5. Warta Kematian</label>
-                  <button onClick={() => setWartaLain({...wartaLain, kematian: [...wartaLain.kematian, {teks: "", gambarUrl: ""}]})} style={{ padding: "5px 10px", backgroundColor: "#dc3545", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", fontSize: "12px" }}>+ Tambah Berita</button>
-                </div>
-                
-                {wartaLain.kematian.map((item, index) => (
-                  <div key={index} style={{ marginBottom: "15px", paddingBottom: "15px", borderBottom: index !== wartaLain.kematian.length - 1 ? "1px dashed #f5c6cb" : "none" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px" }}>
-                      <span style={{ fontSize: "12px", fontWeight: "bold", color: "#c82333" }}>Almarhum/ah #{index + 1}</span>
-                      {wartaLain.kematian.length > 1 && (
-                        <button onClick={() => {
-                          const newArr = [...wartaLain.kematian];
-                          newArr.splice(index, 1);
-                          setWartaLain({...wartaLain, kematian: newArr});
-                        }} style={{ backgroundColor: "#c82333", color: "white", border: "none", borderRadius: "3px", padding: "2px 8px", fontSize: "11px", cursor: "pointer" }}>Hapus</button>
-                      )}
-                    </div>
-                    <div style={{ display: "flex", gap: "10px", marginBottom: "8px", alignItems: "center" }}>
-                      <label style={{ cursor: "pointer", backgroundColor: "#c82333", color: "white", padding: "8px 15px", borderRadius: "4px", fontWeight: "bold", fontSize: "12px", whiteSpace: "nowrap", margin: 0 }}>
-                        📷 Upload Gambar
-                        <input type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => handleUploadGambarWarta(e, "kematian", index)} />
-                      </label>
-                      <input type="text" value={item.gambarUrl} onChange={(e) => {
-                        const newArr = [...wartaLain.kematian];
-                        newArr[index].gambarUrl = e.target.value;
-                        setWartaLain({...wartaLain, kematian: newArr});
-                      }} placeholder="Atau paste Link Gambar di sini..." style={{ flex: "1", padding: "8px", borderRadius: "4px", border: "1px solid #ccc", backgroundColor: item.gambarUrl === "Mengunggah..." ? "#e9ecef" : "#fff", color: item.gambarUrl === "Mengunggah..." ? "#28a745" : "#000", fontWeight: item.gambarUrl === "Mengunggah..." ? "bold" : "normal" }} disabled={item.gambarUrl === "Mengunggah..."} />
-                    </div>
-                    <textarea value={item.teks} onChange={(e) => {
-                      const newArr = [...wartaLain.kematian];
-                      newArr[index].teks = e.target.value;
-                      setWartaLain({...wartaLain, kematian: newArr});
-                    }} placeholder="Teks Warta Kematian..." style={{width: "100%", height: "60px", padding: "8px", borderRadius: "4px", border: "1px solid #ccc"}} />
-                  </div>
-                ))}
-              </div>
-
-              <div><label style={{fontWeight: "bold"}}>6. Informasi Pembangunan</label>
-              <textarea value={wartaLain.pembangunan} onChange={(e) => setWartaLain({...wartaLain, pembangunan: e.target.value})} style={{width: "100%", height: "80px", padding: "10px", borderRadius: "5px", border: "1px solid #ccc"}} /></div>
-
-              <div><label style={{fontWeight: "bold"}}>7. Informasi Lain-lain</label>
-              <textarea value={wartaLain.informasiLain} onChange={(e) => setWartaLain({...wartaLain, informasiLain: e.target.value})} style={{width: "100%", height: "100px", padding: "10px", borderRadius: "5px", border: "1px solid #ccc"}} /></div>
-            </div>
-          ) : (
-            <div style={{ padding: "20px", backgroundColor: "#fff", border: "1px solid #e0e0e0", borderRadius: "8px", fontFamily: "Arial", lineHeight: "1.6", fontSize: "14px" }}>
-              
-              {/* RENDER KATEGORI JIKA ADA ISINYA SAJA */}
-              {wartaLain.sapaan && <div style={{marginBottom:"20px"}}><h4>Sapaan</h4><p style={{whiteSpace:"pre-wrap", textAlign: "justify"}}>{wartaLain.sapaan}</p></div>}
-              
-              {wartaLain.ulangTahun && <div style={{marginBottom:"20px"}}><h4>Ucapan Selamat Ulang Tahun</h4>{renderTabelExcel(wartaLain.ulangTahun)}</div>}
-              
-              {wartaLain.baptisan && <div style={{marginBottom:"20px"}}><h4>Warta Baptisan</h4><p style={{whiteSpace:"pre-wrap"}}>{wartaLain.baptisan}</p></div>}
-              
-              {/* RENDER PERNIKAHAN (ARRAY MAP) */}
-              {Array.isArray(wartaLain.pernikahan) && wartaLain.pernikahan.some(p => p.teks) && (
-                <div style={{marginBottom:"20px", border:"1px solid #bee5eb", padding:"15px", borderRadius:"8px"}}>
-                  <h4>Warta Pernikahan</h4>
-                  {wartaLain.pernikahan.map((item, idx) => item.teks ? (
-                    <div key={idx} style={{ display: "flex", gap: "15px", flexWrap: "wrap", alignItems: "flex-start", marginBottom: "15px", paddingBottom: "15px", borderBottom: idx !== wartaLain.pernikahan.length - 1 ? "1px dashed #bee5eb" : "none" }}>
-                      {item.gambarUrl && <img src={item.gambarUrl} alt="Pernikahan" style={{maxWidth: "200px", borderRadius: "8px"}} />}
-                      <p style={{whiteSpace:"pre-wrap", flex: 1, margin: 0}}>{item.teks}</p>
-                    </div>
-                  ) : null)}
-                </div>
-              )}
-
-              {/* RENDER KEMATIAN (ARRAY MAP) */}
-              {Array.isArray(wartaLain.kematian) && wartaLain.kematian.some(k => k.teks) && (
-                <div style={{marginBottom:"20px", border:"1px solid #f5c6cb", padding:"15px", borderRadius:"8px"}}>
-                  <h4>Warta Kematian</h4>
-                  {wartaLain.kematian.map((item, idx) => item.teks ? (
-                    <div key={idx} style={{ display: "flex", gap: "15px", flexWrap: "wrap", alignItems: "flex-start", marginBottom: "15px", paddingBottom: "15px", borderBottom: idx !== wartaLain.kematian.length - 1 ? "1px dashed #f5c6cb" : "none" }}>
-                      {item.gambarUrl && <img src={item.gambarUrl} alt="Kematian" style={{maxWidth: "200px", borderRadius: "8px"}} />}
-                      <p style={{whiteSpace:"pre-wrap", flex: 1, margin: 0}}>{item.teks}</p>
-                    </div>
-                  ) : null)}
-                </div>
-              )}
-
-              {wartaLain.kematian?.teks && (
-                <div style={{marginBottom:"20px", border:"1px solid #f5c6cb", padding:"15px", borderRadius:"8px"}}>
-                  <h4>Warta Kematian</h4>
-                  <div style={{ display: "flex", gap: "15px", flexWrap: "wrap", alignItems: "flex-start" }}>
-                    {wartaLain.kematian.gambarUrl && <img src={wartaLain.kematian.gambarUrl} alt="Kematian" style={{maxWidth: "200px", borderRadius: "8px"}} />}
-                    <p style={{whiteSpace:"pre-wrap", flex: 1}}>{wartaLain.kematian.teks}</p>
-                  </div>
-                </div>
-              )}
-              
-              {wartaLain.pembangunan && <div style={{marginBottom:"20px"}}><h4>Informasi Pembangunan</h4><p style={{whiteSpace:"pre-wrap"}}>{wartaLain.pembangunan}</p></div>}
-              
-              {wartaLain.informasiLain && <div style={{marginBottom:"20px"}}><h4>Informasi Lain-lain</h4><p style={{whiteSpace:"pre-wrap", textAlign: "justify"}}>{wartaLain.informasiLain}</p></div>}
-
-              {/* Jika Semua Kosong */}
-              {(!wartaLain.sapaan && !wartaLain.ulangTahun && !wartaLain.baptisan && !wartaLain.pernikahan?.teks && !wartaLain.kematian?.teks && !wartaLain.pembangunan && !wartaLain.informasiLain) && (
-                <span style={{ color: "gray", fontStyle: "italic", textAlign: "center", display: "block" }}>Tidak ada warta tambahan untuk tanggal ini.</span>
-              )}
-
             </div>
           )}
+
+          {/* TAMPILAN RENDER WARTA DI LAYAR (NON-EDIT) */}
+          <div style={{ padding: "20px", backgroundColor: "#fff", border: "1px solid #e0e0e0", borderRadius: "8px", fontFamily: "Arial", lineHeight: "1.6", fontSize: "14px" }}>
+            
+            {/* Render Sapaan Global */}
+            {sapaanWartaLain && <div style={{marginBottom:"20px"}}><h4>Sapaan</h4><p style={{whiteSpace:"pre-wrap", textAlign: "justify"}}>{sapaanWartaLain}</p></div>}
+            
+            {wartaLain.ulangTahun && <div style={{marginBottom:"20px"}}><h4>Ucapan Selamat Ulang Tahun</h4>{renderTabelExcel(wartaLain.ulangTahun)}</div>}
+            
+            {wartaLain.baptisan && <div style={{marginBottom:"20px"}}><h4>Warta Baptisan</h4><p style={{whiteSpace:"pre-wrap"}}>{wartaLain.baptisan}</p></div>}
+            
+            {Array.isArray(wartaLain.pernikahan) && wartaLain.pernikahan.some(p => p.teks) && (
+              <div style={{marginBottom:"20px", border:"1px solid #bee5eb", padding:"15px", borderRadius:"8px"}}>
+                <h4>Warta Pernikahan</h4>
+                {wartaLain.pernikahan.map((item, idx) => item.teks ? (
+                  <div key={idx} style={{ display: "flex", gap: "15px", flexWrap: "wrap", alignItems: "flex-start", marginBottom: "15px", paddingBottom: "15px", borderBottom: idx !== wartaLain.pernikahan.length - 1 ? "1px dashed #bee5eb" : "none" }}>
+                    {item.gambarUrl && <img src={item.gambarUrl} alt="Pernikahan" style={{maxWidth: "200px", borderRadius: "8px"}} />}
+                    <p style={{whiteSpace:"pre-wrap", flex: 1, margin: 0}}>{item.teks}</p>
+                  </div>
+                ) : null)}
+              </div>
+            )}
+
+            {Array.isArray(wartaLain.kematian) && wartaLain.kematian.some(k => k.teks) && (
+              <div style={{marginBottom:"20px", border:"1px solid #f5c6cb", padding:"15px", borderRadius:"8px"}}>
+                <h4>Warta Kematian</h4>
+                {wartaLain.kematian.map((item, idx) => item.teks ? (
+                  <div key={idx} style={{ display: "flex", gap: "15px", flexWrap: "wrap", alignItems: "flex-start", marginBottom: "15px", paddingBottom: "15px", borderBottom: idx !== wartaLain.kematian.length - 1 ? "1px dashed #f5c6cb" : "none" }}>
+                    {item.gambarUrl && <img src={item.gambarUrl} alt="Kematian" style={{maxWidth: "200px", borderRadius: "8px"}} />}
+                    <p style={{whiteSpace:"pre-wrap", flex: 1, margin: 0}}>{item.teks}</p>
+                  </div>
+                ) : null)}
+              </div>
+            )}
+            
+            {wartaLain.pembangunan && <div style={{marginBottom:"20px"}}><h4>Informasi Pembangunan</h4><p style={{whiteSpace:"pre-wrap"}}>{wartaLain.pembangunan}</p></div>}
+            
+            {wartaLain.informasiLain && <div style={{marginBottom:"20px"}}><h4>Informasi Lain-lain</h4><p style={{whiteSpace:"pre-wrap", textAlign: "justify"}}>{wartaLain.informasiLain}</p></div>}
+
+            {(!sapaanWartaLain && !wartaLain.ulangTahun && !wartaLain.baptisan && !wartaLain.pernikahan?.some(p => p.teks) && !wartaLain.kematian?.some(k => k.teks) && !wartaLain.pembangunan && !wartaLain.informasiLain) && (
+              <span style={{ color: "gray", fontStyle: "italic", textAlign: "center", display: "block" }}>Tidak ada warta tambahan untuk tanggal ini.</span>
+            )}
+          </div>
         </div>
 
         {/* TAB 4: BACAAN HARIAN (DENGAN CLASS no-print AGAR TIDAK TERCETAK) */}

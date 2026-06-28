@@ -1,3 +1,19 @@
+/* --- KODE BARU DI INDEX.CSS --- */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+
+html {
+  overflow-y: scroll !important;
+}
+
+body {
+  font-family: 'Inter', Arial, sans-serif;
+}
+
+table, th, td, p {
+  font-family: 'Inter', Arial, sans-serif;
+}
+/* ------------------------------- */
+
 :root {
   --text: #6b6375;
   --text-h: #08060d;
